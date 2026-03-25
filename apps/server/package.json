@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "build": "tsc",
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node20 --outfile=dist/index.js --packages=external",
     "start": "node dist/index.js"
   },
   "dependencies": {
@@ -19,6 +19,7 @@
     "@types/cors": "^2.8.17",
     "@types/node": "^20.11.0",
     "@types/qrcode": "^1.5.5",
+    "esbuild": "^0.20.0",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.3.0"
   }
