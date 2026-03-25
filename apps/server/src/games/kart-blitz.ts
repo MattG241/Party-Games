@@ -20,6 +20,9 @@ interface KartPlayer {
   finished: boolean;
   finishTime: number;
   boostTimer: number;
+  steerX: number;
+  throttle: number;
+  brake: number;
 }
 
 const TRACK_CHECKPOINTS: Checkpoint[] = [
@@ -53,13 +56,16 @@ export class KartBlitz extends BaseGame {
         id,
         x: -5 + (i % 4) * 3,
         z: -18 + Math.floor(i / 4) * 3,
-        angle: Math.PI / 2,
+        angle: 0, // facing +Z toward first checkpoint
         speed: 0,
         lap: 0,
         checkpoint: 0,
         finished: false,
         finishTime: 0,
         boostTimer: 0,
+        steerX: 0,
+        throttle: 0,
+        brake: 0,
       });
       i++;
     }
@@ -74,9 +80,10 @@ export class KartBlitz extends BaseGame {
     const joy = data.joystick as { x: number; y: number } | undefined;
     if (joy) {
       // Store input state - physics applied in update()
-      (p as any).steerX = joy.x;
-      (p as any).throttle = Math.max(0, joy.y);
-      (p as any).brake = Math.max(0, -joy.y);
+      // Phone joystick Y is inverted: pushing up = negative Y
+      p.steerX = joy.x;
+      p.throttle = Math.max(0, -joy.y); // up on phone (negative Y) = accelerate
+      p.brake = Math.max(0, joy.y);     // down on phone (positive Y) = brake
     }
 
     const buttons = data.buttons as Record<string, boolean> | undefined;
@@ -93,22 +100,19 @@ export class KartBlitz extends BaseGame {
       if (p.boostTimer > 0) p.boostTimer -= dt;
 
       // Apply steering and acceleration from stored input
-      const steerX = (p as any).steerX ?? 0;
-      const throttle = (p as any).throttle ?? 0;
-      const brake = (p as any).brake ?? 0;
       const maxSpd = p.boostTimer > 0 ? BOOST_SPEED : MAX_SPEED;
 
-      p.angle -= steerX * TURN_SPEED * dt;
-      p.speed += throttle * ACCELERATION * dt;
-      p.speed -= brake * ACCELERATION * 1.5 * dt;
+      p.angle += p.steerX * TURN_SPEED * dt;
+      p.speed += p.throttle * ACCELERATION * dt;
+      p.speed -= p.brake * ACCELERATION * 1.5 * dt;
       p.speed = Math.max(-3, Math.min(maxSpd, p.speed));
 
       // Move
       p.x += Math.sin(p.angle) * p.speed * dt;
       p.z += Math.cos(p.angle) * p.speed * dt;
 
-      // Friction
-      p.speed *= FRICTION;
+      // Frame-rate independent friction: speed *= FRICTION^(dt*60)
+      p.speed *= Math.pow(FRICTION, dt * 60);
 
       // Track boundary - push back toward center if too far
       const distFromCenter = Math.sqrt(p.x * p.x + p.z * p.z);

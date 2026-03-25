@@ -707,6 +707,11 @@ function updatePlayerMeshes(players: PlayerState[]) {
       }
     }
 
+    // Rotate kart to face driving direction
+    if (player.data?.angle !== undefined) {
+      mesh.rotation.y = player.data.angle as number;
+    }
+
     // Make label always face camera
     mesh.children.forEach(child => {
       if (child instanceof THREE.Mesh) {
@@ -899,16 +904,36 @@ function updateHUD(state: GameState) {
     gameTitleEl.textContent = (GAME_NAMES[state.gameId] ?? state.gameId).toUpperCase();
   }
 
-  // Score bar
-  const sorted = [...state.players].sort((a, b) => b.score - a.score);
+  // Score bar - sort by race position for kart-blitz, by score otherwise
+  const isKart = state.gameId === 'kart-blitz';
+  const sorted = isKart
+    ? [...state.players].sort((a, b) => {
+        const aFinished = a.data?.finished ? 1 : 0;
+        const bFinished = b.data?.finished ? 1 : 0;
+        if (aFinished !== bFinished) return bFinished - aFinished;
+        const aLap = (a.data?.lap as number) ?? 0;
+        const bLap = (b.data?.lap as number) ?? 0;
+        if (aLap !== bLap) return bLap - aLap;
+        return ((b.data?.checkpoint as number) ?? 0) - ((a.data?.checkpoint as number) ?? 0);
+      })
+    : [...state.players].sort((a, b) => b.score - a.score);
+
   scoreBarEl.innerHTML = sorted.map((p, i) => {
     const hex = COLOR_HEX[p.color] ?? '#ffffff';
     const initial = p.name.charAt(0).toUpperCase();
+    // Show lap info for kart-blitz
+    const extraInfo = isKart
+      ? `<div style="font-size:11px;opacity:0.7">LAP ${Math.min(((p.data?.lap as number) ?? 0) + 1, 3)}/3</div>`
+      : '';
+    const finishedBadge = p.data?.finished
+      ? '<div style="font-size:11px;color:#3BFF6A;font-weight:700">FINISHED</div>'
+      : '';
     return `
       <div class="player-score-card ${p.eliminated ? 'eliminated' : ''} ${!p.connected ? 'disconnected' : ''}"
            style="border-color: ${p.eliminated ? 'transparent' : hex}22">
         <div class="player-avatar-tv" style="background:${hex}33;color:${hex}">${initial}</div>
         <div class="player-name-tv" style="color:${hex}">${p.name}</div>
+        ${finishedBadge || extraInfo}
         <div class="player-pts-tv">${p.score}</div>
         <div class="player-pos-badge">#${i + 1}</div>
       </div>
