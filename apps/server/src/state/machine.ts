@@ -31,33 +31,43 @@ export function startGame(room: GameRoom, gameId: GameId): void {
   activeEngines.set(room.code, engine);
   let tickCount = 0;
 
+  // Physics tick at 60Hz, broadcast state at 20Hz for smooth networking
+  let broadcastAccum = 0;
+  const BROADCAST_INTERVAL = 1 / 20; // 20Hz
+
   room.gameLoopInterval = setInterval(() => {
     engine.tick();
     tickCount++;
+    broadcastAccum += 1 / 60;
 
-    const result = engine.getState();
+    // Broadcast state at 20Hz (every 3rd tick)
+    if (broadcastAccum >= BROADCAST_INTERVAL) {
+      broadcastAccum -= BROADCAST_INTERVAL;
 
-    broadcastToRoom(room, {
-      type: 'state',
-      tick: tickCount,
-      timestamp: Date.now(),
-      gameId,
-      phase: result.phase,
-      timeRemaining: result.timeRemaining,
-      players: result.players,
-      entities: result.entities,
-      events: result.events,
-      roomCode: room.code,
-      scores: result.scores,
-      round: room.currentRound,
-      totalRounds: room.settings.totalRounds,
-    });
+      const result = engine.getState();
 
-    if (result.phase === 'results' || engine.isFinished()) {
-      clearInterval(room.gameLoopInterval!);
-      room.gameLoopInterval = null;
-      activeEngines.delete(room.code);
-      endGame(room, result.scores);
+      broadcastToRoom(room, {
+        type: 'state',
+        tick: tickCount,
+        timestamp: Date.now(),
+        gameId,
+        phase: result.phase,
+        timeRemaining: result.timeRemaining,
+        players: result.players,
+        entities: result.entities,
+        events: result.events,
+        roomCode: room.code,
+        scores: result.scores,
+        round: room.currentRound,
+        totalRounds: room.settings.totalRounds,
+      });
+
+      if (result.phase === 'results' || engine.isFinished()) {
+        clearInterval(room.gameLoopInterval!);
+        room.gameLoopInterval = null;
+        activeEngines.delete(room.code);
+        endGame(room, result.scores);
+      }
     }
   }, 1000 / 60);
 }

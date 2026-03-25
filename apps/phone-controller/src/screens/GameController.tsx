@@ -60,6 +60,11 @@ export function GameController({ gameId, myColor, myPlayer, timeRemaining, onInp
 
   const pressButton = useCallback((name: string) => {
     stateRef.current.buttons[name] = true;
+    // Send immediately on press for responsiveness (don't wait for next 30Hz interval)
+    onInputRef.current({
+      joystick: stateRef.current.joystick,
+      buttons: { [name]: true },
+    });
   }, []);
 
   // Timer formatting
@@ -106,7 +111,15 @@ export function GameController({ gameId, myColor, myPlayer, timeRemaining, onInp
           <div style={{ ...styles.eliminatedTitle, color: isFinished ? '#3BFF6A' : '#FF3B3B' }}>
             {isFinished ? 'Race Complete!' : "You're out!"}
           </div>
-          <div style={styles.eliminatedHint}>Watch the TV screen...</div>
+          <div style={styles.eliminatedHint}>Watch the TV screen</div>
+          {myPlayer?.data?.points !== undefined && (
+            <div style={{ fontSize: 18, fontWeight: 700, marginTop: 8 }}>
+              Your score: {myPlayer.data.points as number}
+            </div>
+          )}
+          <div style={{ fontSize: 28, marginTop: 12 }}>
+            {timerStr}
+          </div>
         </div>
       ) : (
         <>

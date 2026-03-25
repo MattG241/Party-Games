@@ -782,8 +782,9 @@ function updatePlayerMeshes(players: PlayerState[]) {
   for (const player of players) {
     if (!player.position) continue;
     const mesh = getOrCreatePlayerMesh(player);
-    // Smooth interpolation
-    mesh.position.lerp(new THREE.Vector3(player.position.x, player.position.y, player.position.z), 0.3);
+    // Smooth interpolation — lerp factor tuned for 20Hz state updates + 60fps render
+    const target = new THREE.Vector3(player.position.x, player.position.y, player.position.z);
+    mesh.position.lerp(target, 0.15);
 
     const mat = mesh.material as THREE.MeshStandardMaterial;
     if (player.eliminated) {
@@ -906,7 +907,7 @@ function updateEntityMeshes(entities: GameState['entities']) {
         scene.add(mesh);
         entityMeshes.set(entity.id, mesh);
       }
-      mesh.position.lerp(new THREE.Vector3(entity.position.x, entity.position.y, entity.position.z), 0.4);
+      mesh.position.lerp(new THREE.Vector3(entity.position.x, entity.position.y, entity.position.z), 0.2);
     } else if (entity.type === 'target') {
       let mesh = entityMeshes.get(entity.id) as THREE.Mesh;
       const radius = (entity.data?.radius as number) ?? 1;
@@ -928,7 +929,7 @@ function updateEntityMeshes(entities: GameState['entities']) {
         ring.position.y = 0.16;
         mesh.add(ring);
       }
-      mesh.position.lerp(new THREE.Vector3(entity.position.x, entity.position.y, entity.position.z), 0.3);
+      mesh.position.lerp(new THREE.Vector3(entity.position.x, entity.position.y, entity.position.z), 0.15);
     } else if (entity.type === 'projectile') {
       let mesh = entityMeshes.get(entity.id) as THREE.Mesh;
       if (!mesh) {
@@ -972,7 +973,7 @@ function updateEntityMeshes(entities: GameState['entities']) {
         scene.add(mesh);
         entityMeshes.set(entity.id, mesh);
       }
-      mesh.position.lerp(new THREE.Vector3(entity.position.x, 1, entity.position.z), 0.3);
+      mesh.position.lerp(new THREE.Vector3(entity.position.x, 1, entity.position.z), 0.15);
       const active = entity.data?.active as boolean ?? true;
       mesh.visible = active || obsType !== 'crusher';
     } else if (entity.type === 'sumo_ring') {
@@ -1007,7 +1008,7 @@ function updateEntityMeshes(entities: GameState['entities']) {
         scene.add(mesh);
         entityMeshes.set(entity.id, mesh);
       }
-      mesh.position.lerp(new THREE.Vector3(entity.position.x, 0.5, entity.position.z), 0.4);
+      mesh.position.lerp(new THREE.Vector3(entity.position.x, 0.5, entity.position.z), 0.2);
     } else if (entity.type === 'drawing') {
       // Drawing rendered as line segments on the whiteboard (20x15 at (0,7.5,-2))
       let group = entityMeshes.get(entity.id) as THREE.Group;
