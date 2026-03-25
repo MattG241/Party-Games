@@ -16,7 +16,6 @@ interface TriviaPlayer {
   streak: number;
   currentAnswer: number | null; // 0-3
   answeredCorrectly: boolean | null;
-  eliminated: boolean;
 }
 
 const QUESTIONS: TriviaQuestion[] = [
@@ -40,6 +39,21 @@ const QUESTIONS: TriviaQuestion[] = [
   { question: 'Who wrote Romeo and Juliet?', answers: ['Dickens', 'Shakespeare', 'Austen', 'Twain'], correctIndex: 1, category: 'Literature' },
   { question: 'What is the boiling point of water?', answers: ['90°C', '100°C', '110°C', '120°C'], correctIndex: 1, category: 'Science' },
   { question: 'Which planet has rings?', answers: ['Mars', 'Jupiter', 'Saturn', 'Neptune'], correctIndex: 2, category: 'Space' },
+  { question: 'What is the smallest bone in the body?', answers: ['Toe', 'Stapes', 'Finger', 'Rib'], correctIndex: 1, category: 'Science' },
+  { question: 'Which ocean is the deepest?', answers: ['Atlantic', 'Indian', 'Pacific', 'Southern'], correctIndex: 2, category: 'Geography' },
+  { question: 'How many strings does a guitar have?', answers: ['4', '5', '6', '8'], correctIndex: 2, category: 'Music' },
+  { question: 'What is the largest mammal?', answers: ['Elephant', 'Blue Whale', 'Giraffe', 'Hippo'], correctIndex: 1, category: 'Nature' },
+  { question: 'Which gas makes up most of the air?', answers: ['Oxygen', 'CO2', 'Nitrogen', 'Helium'], correctIndex: 2, category: 'Science' },
+  { question: 'What is the capital of Australia?', answers: ['Sydney', 'Melbourne', 'Canberra', 'Perth'], correctIndex: 2, category: 'Geography' },
+  { question: 'How many teeth does an adult have?', answers: ['28', '30', '32', '34'], correctIndex: 2, category: 'Science' },
+  { question: 'Who discovered gravity?', answers: ['Einstein', 'Newton', 'Galileo', 'Tesla'], correctIndex: 1, category: 'Science' },
+  { question: 'What year did the Titanic sink?', answers: ['1905', '1912', '1920', '1898'], correctIndex: 1, category: 'History' },
+  { question: 'Which planet is known as the Red Planet?', answers: ['Venus', 'Jupiter', 'Mars', 'Mercury'], correctIndex: 2, category: 'Space' },
+  { question: 'What is the largest desert?', answers: ['Sahara', 'Gobi', 'Antarctic', 'Arabian'], correctIndex: 2, category: 'Geography' },
+  { question: 'How many hearts does an octopus have?', answers: ['1', '2', '3', '4'], correctIndex: 2, category: 'Nature' },
+  { question: 'What metal is liquid at room temp?', answers: ['Lead', 'Mercury', 'Gallium', 'Tin'], correctIndex: 1, category: 'Science' },
+  { question: 'Who invented the telephone?', answers: ['Edison', 'Tesla', 'Bell', 'Morse'], correctIndex: 2, category: 'History' },
+  { question: 'What is the fastest land animal?', answers: ['Lion', 'Cheetah', 'Horse', 'Gazelle'], correctIndex: 1, category: 'Nature' },
 ];
 
 export class TriviaRoyale extends BaseGame {
@@ -48,7 +62,7 @@ export class TriviaRoyale extends BaseGame {
   private currentQuestionIndex = 0;
   private questionTimer = 0;
   private questionDuration = 15;
-  private phase: 'question' | 'reveal' | 'waiting' = 'question';
+  private phase: 'question' | 'reveal' = 'question';
   private revealTimer = 0;
 
   constructor(room: GameRoom) {
@@ -62,7 +76,6 @@ export class TriviaRoyale extends BaseGame {
         streak: 0,
         currentAnswer: null,
         answeredCorrectly: null,
-        eliminated: false,
       });
     }
     this.startQuestion();
@@ -82,7 +95,7 @@ export class TriviaRoyale extends BaseGame {
 
   handleInput(playerId: string, data: Record<string, unknown>): void {
     const p = this.tPlayers.get(playerId);
-    if (!p || p.eliminated || this.phase !== 'question') return;
+    if (!p || this.phase !== 'question') return;
     if (p.currentAnswer !== null) return; // Already answered
 
     const buttons = data.buttons as Record<string, boolean> | undefined;
@@ -104,7 +117,7 @@ export class TriviaRoyale extends BaseGame {
       this.questionTimer -= dt;
 
       // Check if all players answered
-      const activePlayers = [...this.tPlayers.values()].filter(p => !p.eliminated);
+      const activePlayers = [...this.tPlayers.values()];
       const allAnswered = activePlayers.every(p => p.currentAnswer !== null);
 
       if (this.questionTimer <= 0 || allAnswered) {
@@ -127,7 +140,6 @@ export class TriviaRoyale extends BaseGame {
     const q = this.questions[this.currentQuestionIndex];
 
     for (const p of this.tPlayers.values()) {
-      if (p.eliminated) continue;
       if (p.currentAnswer === q.correctIndex) {
         p.answeredCorrectly = true;
         const timeBonus = Math.ceil((this.questionTimer / this.questionDuration) * 3);
@@ -178,6 +190,10 @@ export class TriviaRoyale extends BaseGame {
   }
 
   getPlayerStates(): PlayerState[] {
+    const q = this.currentQuestionIndex < this.questions.length
+      ? this.questions[this.currentQuestionIndex]
+      : null;
+    const totalQ = Math.min(this.questions.length, 15);
     return [...this.room.players.values()].map(rp => {
       const tp = this.tPlayers.get(rp.id);
       return {
@@ -188,12 +204,18 @@ export class TriviaRoyale extends BaseGame {
         connected: rp.connected,
         isHost: rp.isHost,
         position: { x: 0, y: 0, z: 0 },
-        eliminated: tp?.eliminated ?? false,
         data: {
           points: tp?.points ?? 0,
           streak: tp?.streak ?? 0,
           currentAnswer: tp?.currentAnswer,
           answeredCorrectly: tp?.answeredCorrectly,
+          phase: this.phase,
+          questionNumber: this.currentQuestionIndex + 1,
+          totalQuestions: totalQ,
+          timer: Math.ceil(this.questionTimer),
+          answers: q?.answers ?? [],
+          category: q?.category ?? '',
+          correctIndex: this.phase === 'reveal' ? q?.correctIndex ?? -1 : -1,
         },
       };
     });

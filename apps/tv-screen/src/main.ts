@@ -1386,8 +1386,10 @@ gws.onMessage((msg) => {
         updateHUD(msg);
         updatePlayerMeshes(msg.players);
         updateEntityMeshes(msg.entities);
-        // Hide trivia overlay if not in trivia game
-        if (msg.gameId !== 'trivia-royale') triviaOverlay.classList.add('hidden');
+        // Hide trivia overlay if not in trivia game or no question entity
+        if (msg.gameId !== 'trivia-royale' || !msg.entities.some((e: any) => e.type === 'trivia_question')) {
+          triviaOverlay.classList.add('hidden');
+        }
       } else if (msg.phase === 'victory') {
         showVictory(msg.players, msg.scores);
       } else if (msg.phase === 'lobby') {

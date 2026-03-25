@@ -403,15 +403,83 @@ function renderButtons(
       );
     }
 
-    case 'trivia-royale':
+    case 'trivia-royale': {
+      const triviaPhase = (myPlayer?.data?.phase as string) ?? 'question';
+      const answers = (myPlayer?.data?.answers as string[]) ?? [];
+      const currentAnswer = myPlayer?.data?.currentAnswer as number | null | undefined;
+      const answeredCorrectly = myPlayer?.data?.answeredCorrectly as boolean | null | undefined;
+      const correctIdx = (myPlayer?.data?.correctIndex as number) ?? -1;
+      const qNum = (myPlayer?.data?.questionNumber as number) ?? 1;
+      const totalQ = (myPlayer?.data?.totalQuestions as number) ?? 15;
+      const timer = (myPlayer?.data?.timer as number) ?? 0;
+      const streak = (myPlayer?.data?.streak as number) ?? 0;
+      const pts = (myPlayer?.data?.points as number) ?? 0;
+      const colors = ['#3BFF6A', '#FF3B3B', '#3B8BFF', '#FFE03B'];
+      const labels = ['A', 'B', 'X', 'Y'];
+      const buttons = ['a', 'b', 'x', 'y'];
+
+      const hasAnswered = currentAnswer !== null && currentAnswer !== undefined;
+
       return (
-        <div style={btnStyles.grid2}>
-          <ActionButton label="A" color="#3BFF6A" size="medium" onPress={() => pressButton('a')} />
-          <ActionButton label="B" color="#FF3B3B" size="medium" onPress={() => pressButton('b')} />
-          <ActionButton label="X" color="#3B8BFF" size="medium" onPress={() => pressButton('x')} />
-          <ActionButton label="Y" color="#FFE03B" size="medium" onPress={() => pressButton('y')} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '10px', height: '100%', justifyContent: 'center' }}>
+          {/* Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 4px' }}>
+            <div style={{ fontSize: 12, opacity: 0.5 }}>Q{qNum}/{totalQ}</div>
+            <div style={{ fontSize: 16, fontWeight: 900 }}>{pts} pts</div>
+            <div style={{ fontSize: 12, opacity: 0.5 }}>
+              {triviaPhase === 'question' ? `${timer}s` : 'Reveal'}
+              {streak > 1 && ` · 🔥${streak}`}
+            </div>
+          </div>
+          {/* Answer buttons */}
+          {answers.map((answer: string, i: number) => {
+            let bg = `${colors[i]}15`;
+            let border = `${colors[i]}66`;
+            let opacity = 1;
+            if (triviaPhase === 'reveal') {
+              if (i === correctIdx) { bg = '#3BFF6A33'; border = '#3BFF6A'; }
+              else if (i === currentAnswer) { bg = '#FF3B3B33'; border = '#FF3B3B'; }
+              else { opacity = 0.4; }
+            } else if (hasAnswered) {
+              opacity = i === currentAnswer ? 1 : 0.3;
+            }
+            return (
+              <button
+                key={i}
+                disabled={hasAnswered || triviaPhase !== 'question'}
+                onTouchStart={(e) => { e.preventDefault(); if (!hasAnswered && triviaPhase === 'question') { pressButton(buttons[i]); if ('vibrate' in navigator) navigator.vibrate(20); } }}
+                onClick={() => { if (!hasAnswered && triviaPhase === 'question') pressButton(buttons[i]); }}
+                style={{
+                  padding: '12px 14px', borderRadius: 12,
+                  background: bg, border: `2px solid ${border}`,
+                  color: 'white', fontSize: 16, fontWeight: 700,
+                  cursor: hasAnswered ? 'default' : 'pointer',
+                  display: 'flex', gap: 10, alignItems: 'center',
+                  opacity, transition: 'all 0.2s',
+                  touchAction: 'none', userSelect: 'none',
+                }}
+              >
+                <span style={{
+                  width: 26, height: 26, borderRadius: '50%',
+                  background: `${colors[i]}44`, color: colors[i],
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontWeight: 900, fontSize: 13, flexShrink: 0,
+                }}>{labels[i]}</span>
+                {answer}
+                {triviaPhase === 'reveal' && i === correctIdx && ' ✓'}
+                {triviaPhase === 'reveal' && i === currentAnswer && i !== correctIdx && ' ✗'}
+              </button>
+            );
+          })}
+          {/* Feedback */}
+          {triviaPhase === 'reveal' && answeredCorrectly !== null && (
+            <div style={{ textAlign: 'center', fontSize: 14, fontWeight: 700, color: answeredCorrectly ? '#3BFF6A' : '#FF3B3B' }}>
+              {answeredCorrectly ? 'Correct!' : (hasAnswered ? 'Wrong!' : 'Time\'s up!')}
+            </div>
+          )}
         </div>
       );
+    }
 
     case 'rhythm-riot':
       return (
