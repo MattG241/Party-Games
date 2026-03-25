@@ -127,7 +127,7 @@ export class DoodleDash extends BaseGame {
 
       // Check if all guessers have guessed
       const guessers = [...this.dPlayers.values()].filter(p => !p.isDrawer);
-      const allGuessed = guessers.every(p => p.hasGuessed);
+      const allGuessed = guessers.length > 0 && guessers.every(p => p.hasGuessed);
 
       if (this.roundTimer <= 0 || allGuessed) {
         this.roundPhase = 'reveal';

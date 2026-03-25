@@ -157,6 +157,11 @@ wss.on('connection', (ws: WebSocket) => {
         if (!room) return;
         const player = room.players.get(msg.playerId);
         if (!player?.isHost) return;
+        if (room.players.size < 1) {
+          sendToPlayer(ws, { type: 'room_error', message: 'Need at least 1 player to start.' });
+          return;
+        }
+        if (room.phase !== 'lobby' && room.phase !== 'game-select') return;
         startCountdown(room, msg.gameId);
         break;
       }

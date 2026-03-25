@@ -1,21 +1,29 @@
-import React from 'react';
-import { RoomInfo, PlayerState, COLOR_HEX, GAME_NAMES, GameId } from '@party-blast/shared';
+import React, { useState } from 'react';
+import { RoomInfo, COLOR_HEX, GAME_NAMES, GAME_EMOJIS, GameId } from '@party-blast/shared';
 
 interface LobbyScreenProps {
   roomInfo: RoomInfo;
   playerId: string;
   onStartGame: () => void;
+  onSelectGame: (gameId: GameId) => void;
   onVote: (gameId: GameId) => void;
   voteOptions: GameId[];
   votes: Record<string, number>;
 }
 
-export function LobbyScreen({ roomInfo, playerId, onStartGame, onVote, voteOptions, votes }: LobbyScreenProps) {
+const ALL_GAMES: GameId[] = [
+  'platform-panic', 'bomb-tag', 'arena-ball', 'sumo-smash',
+  'kart-blitz', 'bullseye-bonanza', 'obstacle-gauntlet',
+  'trivia-royale', 'rhythm-riot', 'doodle-dash',
+];
+
+export function LobbyScreen({ roomInfo, playerId, onStartGame, onSelectGame, onVote, voteOptions, votes }: LobbyScreenProps) {
   const me = roomInfo.players.find(p => p.id === playerId);
   const isHost = me?.isHost ?? false;
   const myColor = me ? COLOR_HEX[me.color] : '#ffffff';
-  const canStart = roomInfo.players.length >= 1;
+  const [selectedGame, setSelectedGame] = useState<GameId | null>(null);
 
+  // Voting phase
   if (roomInfo.phase === 'game-select' && voteOptions.length > 0) {
     return (
       <div style={styles.container}>
@@ -40,8 +48,9 @@ export function LobbyScreen({ roomInfo, playerId, onStartGame, onVote, voteOptio
                 style={{ ...styles.voteBtn, borderColor: myColor }}
                 onClick={() => onVote(opt)}
               >
+                <span style={{ fontSize: 24 }}>{GAME_EMOJIS[opt]}</span>
                 <span style={styles.voteGameName}>{GAME_NAMES[opt] ?? opt}</span>
-                <span style={{ ...styles.voteCount, color: myColor }}>{voteCount} votes</span>
+                <span style={{ ...styles.voteCount, color: myColor }}>{voteCount}</span>
               </button>
             );
           })}
@@ -50,6 +59,7 @@ export function LobbyScreen({ roomInfo, playerId, onStartGame, onVote, voteOptio
     );
   }
 
+  // Lobby phase
   return (
     <div style={styles.container}>
       <div style={{ ...styles.header, borderColor: myColor }}>
@@ -81,23 +91,42 @@ export function LobbyScreen({ roomInfo, playerId, onStartGame, onVote, voteOptio
             </div>
           );
         })}
-        {Array.from({ length: Math.max(0, 8 - roomInfo.players.length) }).slice(0, 4).map((_, i) => (
-          <div key={`empty-${i}`} style={styles.emptySlot}>
-            <div style={styles.emptyDot} />
-            <span style={styles.emptyText}>Waiting...</span>
-          </div>
-        ))}
       </div>
 
       {isHost ? (
         <div style={styles.startSection}>
-          {!canStart && <div style={styles.waitHint}>Need at least 2 players to start</div>}
+          <div style={styles.sectionTitle}>SELECT A GAME</div>
+          <div style={styles.gameGrid}>
+            {ALL_GAMES.map(gid => {
+              const isSelected = selectedGame === gid;
+              return (
+                <button
+                  key={gid}
+                  onClick={() => setSelectedGame(gid)}
+                  style={{
+                    ...styles.gameCard,
+                    borderColor: isSelected ? myColor : 'rgba(255,255,255,0.1)',
+                    background: isSelected ? myColor + '22' : 'rgba(255,255,255,0.04)',
+                  }}
+                >
+                  <span style={{ fontSize: 28 }}>{GAME_EMOJIS[gid]}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, textAlign: 'center' as const }}>{GAME_NAMES[gid]}</span>
+                </button>
+              );
+            })}
+          </div>
+
           <button
-            style={{ ...styles.startBtn, opacity: canStart ? 1 : 0.4 }}
-            disabled={!canStart}
-            onClick={onStartGame}
+            style={{
+              ...styles.startBtn,
+              opacity: selectedGame ? 1 : 0.4,
+            }}
+            disabled={!selectedGame}
+            onClick={() => {
+              if (selectedGame) onSelectGame(selectedGame);
+            }}
           >
-            START GAME
+            {selectedGame ? `PLAY ${GAME_NAMES[selectedGame].toUpperCase()}` : 'SELECT A GAME'}
           </button>
         </div>
       ) : (
@@ -117,7 +146,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     padding: '16px',
-    gap: '16px',
+    gap: '12px',
     fontFamily: "'Segoe UI', system-ui, sans-serif",
     color: 'white',
     overflowY: 'auto',
@@ -130,32 +159,33 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'rgba(255,255,255,0.05)',
     borderRadius: '16px',
     border: '2px solid',
+    flexShrink: 0,
   },
   avatar: {
-    width: '48px',
-    height: '48px',
+    width: '44px',
+    height: '44px',
     borderRadius: '50%',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: '22px',
+    fontSize: '20px',
     fontWeight: 900,
     flexShrink: 0,
   },
-  playerName: { fontSize: '20px', fontWeight: 700 },
-  roomCode: { fontSize: '13px', opacity: 0.5, letterSpacing: '2px' },
+  playerName: { fontSize: '18px', fontWeight: 700 },
+  roomCode: { fontSize: '12px', opacity: 0.5, letterSpacing: '2px' },
   hostBadge: {
     marginLeft: 'auto',
     background: 'rgba(255,224,59,0.2)',
     color: '#FFE03B',
-    fontSize: '12px',
+    fontSize: '11px',
     fontWeight: 700,
     padding: '4px 10px',
     borderRadius: '6px',
     letterSpacing: '1px',
   },
   sectionTitle: {
-    fontSize: '12px',
+    fontSize: '11px',
     opacity: 0.5,
     letterSpacing: '3px',
     textTransform: 'uppercase',
@@ -163,77 +193,73 @@ const styles: Record<string, React.CSSProperties> = {
   playerList: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '8px',
+    gap: '6px',
   },
   playerRow: {
     display: 'flex',
     alignItems: 'center',
     gap: '10px',
-    padding: '10px 14px',
+    padding: '8px 12px',
     background: 'rgba(255,255,255,0.04)',
-    borderRadius: '12px',
+    borderRadius: '10px',
     border: '1px solid',
   },
   playerDot: {
-    width: '36px',
-    height: '36px',
+    width: '32px',
+    height: '32px',
     borderRadius: '50%',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     fontWeight: 900,
-    fontSize: '16px',
+    fontSize: '14px',
     flexShrink: 0,
   },
-  playerRowName: { fontSize: '16px', fontWeight: 600, flex: 1 },
+  playerRowName: { fontSize: '15px', fontWeight: 600, flex: 1 },
   hostTag: {
-    fontSize: '11px',
+    fontSize: '10px',
     color: '#FFE03B',
     background: 'rgba(255,224,59,0.1)',
-    padding: '2px 8px',
+    padding: '2px 6px',
     borderRadius: '4px',
   },
   disconnectedTag: {
-    fontSize: '11px',
+    fontSize: '10px',
     color: '#FF3B3B',
     background: 'rgba(255,59,59,0.1)',
-    padding: '2px 8px',
+    padding: '2px 6px',
     borderRadius: '4px',
   },
-  emptySlot: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
-    padding: '10px 14px',
-    background: 'rgba(255,255,255,0.01)',
-    borderRadius: '12px',
-    border: '1px dashed rgba(255,255,255,0.08)',
-    opacity: 0.4,
-  },
-  emptyDot: {
-    width: '36px',
-    height: '36px',
-    borderRadius: '50%',
-    background: 'rgba(255,255,255,0.05)',
-    flexShrink: 0,
-  },
-  emptyText: { fontSize: '14px', opacity: 0.5 },
   startSection: {
-    marginTop: 'auto',
     display: 'flex',
     flexDirection: 'column',
     gap: '10px',
+    flex: 1,
   },
-  waitHint: {
-    textAlign: 'center',
-    fontSize: '13px',
-    opacity: 0.5,
+  gameGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, 1fr)',
+    gap: '8px',
+  },
+  gameCard: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '4px',
+    padding: '12px 4px',
+    borderRadius: '12px',
+    border: '2px solid',
+    color: 'white',
+    cursor: 'pointer',
+    transition: 'all 0.15s',
+    background: 'rgba(255,255,255,0.04)',
   },
   startBtn: {
-    padding: '20px',
-    fontSize: '22px',
+    padding: '18px',
+    fontSize: '18px',
     fontWeight: 900,
-    letterSpacing: '3px',
+    letterSpacing: '2px',
     background: 'linear-gradient(135deg, #3BFF6A, #3B8BFF)',
     color: 'white',
     border: 'none',
@@ -241,6 +267,8 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     width: '100%',
     boxShadow: '0 0 30px rgba(59,255,106,0.3)',
+    marginTop: 'auto',
+    flexShrink: 0,
   },
   waitingSection: {
     marginTop: 'auto',
@@ -268,17 +296,17 @@ const styles: Record<string, React.CSSProperties> = {
   voteBtn: {
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: '20px 24px',
+    gap: '12px',
+    padding: '16px 20px',
     background: 'rgba(255,255,255,0.06)',
     border: '2px solid',
     borderRadius: '16px',
     color: 'white',
-    fontSize: '20px',
+    fontSize: '18px',
     fontWeight: 700,
     cursor: 'pointer',
     transition: 'all 0.2s',
   },
-  voteGameName: { fontSize: '18px', fontWeight: 700 },
-  voteCount: { fontSize: '24px', fontWeight: 900 },
+  voteGameName: { fontSize: '16px', fontWeight: 700, flex: 1 },
+  voteCount: { fontSize: '22px', fontWeight: 900 },
 };

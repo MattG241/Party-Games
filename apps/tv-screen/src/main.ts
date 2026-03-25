@@ -617,7 +617,11 @@ function getOrCreatePlayerMesh(player: PlayerState): THREE.Mesh {
     labelCanvas.height = 64;
     const ctx = labelCanvas.getContext('2d')!;
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
-    ctx.roundRect(4, 4, 248, 56, 8);
+    if (ctx.roundRect) {
+      ctx.roundRect(4, 4, 248, 56, 8);
+    } else {
+      ctx.rect(4, 4, 248, 56);
+    }
     ctx.fill();
     ctx.fillStyle = hex;
     ctx.font = 'bold 28px sans-serif';

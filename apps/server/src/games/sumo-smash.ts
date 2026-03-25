@@ -12,6 +12,7 @@ interface SumoPlayer {
   eliminated: boolean;
   chargeCooldown: number;
   isCharging: boolean;
+  chargeTimer: number;
   chargeVx: number;
   chargeVz: number;
 }
@@ -36,6 +37,7 @@ export class SumoSmash extends BaseGame {
         eliminated: false,
         chargeCooldown: 0,
         isCharging: false,
+        chargeTimer: 0,
         chargeVx: 0,
         chargeVz: 0,
       });
@@ -59,10 +61,10 @@ export class SumoSmash extends BaseGame {
     if (buttons?.charge && p.chargeCooldown <= 0 && !p.isCharging) {
       const mag = Math.sqrt(p.vx * p.vx + p.vz * p.vz) || 1;
       p.isCharging = true;
+      p.chargeTimer = 0.4;
       p.chargeVx = (p.vx / mag) * 18;
       p.chargeVz = (p.vz / mag) * 18;
       p.chargeCooldown = 2.5;
-      setTimeout(() => { p.isCharging = false; }, 400);
     }
   }
 
@@ -71,6 +73,10 @@ export class SumoSmash extends BaseGame {
 
     for (const p of alive) {
       if (p.chargeCooldown > 0) p.chargeCooldown -= dt;
+      if (p.isCharging) {
+        p.chargeTimer -= dt;
+        if (p.chargeTimer <= 0) p.isCharging = false;
+      }
 
       const moveVx = p.isCharging ? p.chargeVx : p.vx;
       const moveVz = p.isCharging ? p.chargeVz : p.vz;

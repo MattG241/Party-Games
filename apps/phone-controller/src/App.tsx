@@ -171,6 +171,10 @@ export default function App() {
     send({ type: 'start_game', roomCode: roomCodeRef.current, playerId: playerIdRef.current });
   }, [send]);
 
+  const handleSelectGame = useCallback((gameId: GameId) => {
+    send({ type: 'select_game', roomCode: roomCodeRef.current, playerId: playerIdRef.current, gameId });
+  }, [send]);
+
   const handleVote = useCallback((gameId: GameId) => {
     send({ type: 'vote_game', roomCode: roomCodeRef.current, playerId: playerIdRef.current, gameId });
   }, [send]);
@@ -220,6 +224,7 @@ export default function App() {
           roomInfo={roomInfo}
           playerId={playerId}
           onStartGame={handleStartGame}
+          onSelectGame={handleSelectGame}
           onVote={handleVote}
           voteOptions={voteOptions}
           votes={votes}

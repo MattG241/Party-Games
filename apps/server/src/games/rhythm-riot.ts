@@ -124,7 +124,8 @@ export class RhythmRiot extends BaseGame {
         } else {
           p.points += 1;
           p.combo++;
-          p.lastHitQuality = 'good';
+          p.good++;
+          p.lastHitQuality = 'ok';
         }
         if (p.combo > 0 && p.combo % 10 === 0) {
           p.points += 5;
