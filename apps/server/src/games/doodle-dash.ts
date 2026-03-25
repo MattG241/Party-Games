@@ -3,13 +3,7 @@ import { SCORE_TABLE } from '@party-blast/shared';
 import { BaseGame } from './base';
 import { GameRoom } from '../rooms/types';
 
-// Drawing prompt game: players draw on their phones, other players guess
-// Simplified as a relay race where players must trace a path quickly
-
-interface DrawPath {
-  points: { x: number; y: number }[];
-  word: string;
-}
+// Drawing game: one player draws on their phone, others guess from 4 choices
 
 interface DoodlePlayer {
   id: string;
@@ -41,8 +35,8 @@ export class DoodleDash extends BaseGame {
   private correctAnswerIndex = 0;
 
   constructor(room: GameRoom) {
-    super(room, 480);
-    this.totalInternalRounds = room.players.size * 2; // Each player draws twice
+    super(room, 600); // generous timer; game ends by round count not clock
+    this.totalInternalRounds = Math.min(room.players.size * 2, 8); // cap at 8 rounds
     for (const [id] of room.players) {
       this.dPlayers.set(id, {
         id,
@@ -94,15 +88,27 @@ export class DoodleDash extends BaseGame {
     if (!p) return;
 
     if (p.isDrawer && this.roundPhase === 'drawing') {
-      // Drawer sends drawing strokes via tap
+      // Drawer sends drawing strokes via tap (touch points)
       const tap = data.tap as { x: number; y: number } | undefined;
       if (tap) {
         p.currentDrawing.push({ x: tap.x, y: tap.y });
       }
-      // Also accept joystick as drawing position
+      // Joystick as drawing cursor
       const joy = data.joystick as { x: number; y: number } | undefined;
       if (joy && (Math.abs(joy.x) > 0.1 || Math.abs(joy.y) > 0.1)) {
         p.currentDrawing.push({ x: joy.x, y: joy.y });
+      }
+      // Pen-up marker: NaN,NaN signals a stroke break
+      const buttons = data.buttons as Record<string, boolean> | undefined;
+      if (buttons?.penUp) {
+        p.currentDrawing.push({ x: NaN, y: NaN });
+      }
+      // When joystick is released (near zero), add a stroke break
+      if (joy && Math.abs(joy.x) < 0.05 && Math.abs(joy.y) < 0.05) {
+        const last = p.currentDrawing[p.currentDrawing.length - 1];
+        if (last && !isNaN(last.x)) {
+          p.currentDrawing.push({ x: NaN, y: NaN });
+        }
       }
     }
 
@@ -154,7 +160,7 @@ export class DoodleDash extends BaseGame {
 
       if (this.roundTimer <= 0 || allGuessed) {
         this.roundPhase = 'reveal';
-        this.revealTimer = 3;
+        this.revealTimer = 5;
       }
     } else if (this.roundPhase === 'reveal') {
       this.revealTimer -= dt;
@@ -200,7 +206,7 @@ export class DoodleDash extends BaseGame {
           points: dp?.points ?? 0,
           isDrawer: dp?.isDrawer ?? false,
           hasGuessed: dp?.hasGuessed ?? false,
-          word: dp?.isDrawer ? this.currentWord : (this.roundPhase === 'reveal' ? this.currentWord : this.currentWord.replace(/[a-zA-Z]/g, '_')),
+          word: dp?.isDrawer ? this.currentWord : (this.roundPhase === 'reveal' ? this.currentWord : this.currentWord[0] + this.currentWord.slice(1).replace(/[a-zA-Z]/g, '_')),
           answerChoices: dp?.isDrawer ? [] : this.answerChoices,
           correctAnswerIndex: this.roundPhase === 'reveal' ? this.correctAnswerIndex : -1,
           roundPhase: this.roundPhase,

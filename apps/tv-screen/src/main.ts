@@ -996,22 +996,36 @@ function updateEntityMeshes(entities: GameState['entities']) {
       }
       mesh.position.lerp(new THREE.Vector3(entity.position.x, 0.5, entity.position.z), 0.4);
     } else if (entity.type === 'drawing') {
-      // Drawing entities rendered as line segments on the whiteboard
-      // Whiteboard is 20x15 at position (0, 7.5, -2)
+      // Drawing rendered as line segments on the whiteboard (20x15 at (0,7.5,-2))
       let group = entityMeshes.get(entity.id) as THREE.Group;
       if (group) { scene.remove(group); entityMeshes.delete(entity.id); }
       const strokes = entity.data?.strokes as { x: number; y: number }[] | undefined;
       if (strokes && strokes.length > 1) {
         group = new THREE.Group();
-        // Map joystick coordinates (-1 to 1) to whiteboard space
-        const pts = strokes.map(s => new THREE.Vector3(
-          s.x * 9,           // -1..1 -> -9..9 (within 20-wide canvas)
-          7.5 - s.y * 6.5,   // -1..1 -> 14..1 (inverted Y, within 15-tall canvas)
-          -1.9               // slightly in front of whiteboard at z=-2
-        ));
-        const lineGeo = new THREE.BufferGeometry().setFromPoints(pts);
         const lineMat = new THREE.LineBasicMaterial({ color: 0x333333, linewidth: 2 });
-        group.add(new THREE.Line(lineGeo, lineMat));
+        // Split strokes at NaN markers (pen-up points)
+        let currentStroke: THREE.Vector3[] = [];
+        for (const s of strokes) {
+          if (isNaN(s.x) || isNaN(s.y)) {
+            // Pen up — finish current stroke
+            if (currentStroke.length > 1) {
+              const lineGeo = new THREE.BufferGeometry().setFromPoints(currentStroke);
+              group.add(new THREE.Line(lineGeo, lineMat));
+            }
+            currentStroke = [];
+          } else {
+            currentStroke.push(new THREE.Vector3(
+              s.x * 9,
+              7.5 - s.y * 6.5,
+              -1.9
+            ));
+          }
+        }
+        // Flush last stroke
+        if (currentStroke.length > 1) {
+          const lineGeo = new THREE.BufferGeometry().setFromPoints(currentStroke);
+          group.add(new THREE.Line(lineGeo, lineMat));
+        }
         scene.add(group);
         entityMeshes.set(entity.id, group);
       }

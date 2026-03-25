@@ -290,15 +290,81 @@ function renderButtons(
       );
     }
 
-    case 'doodle-dash':
+    case 'doodle-dash': {
+      const isDrawer = myPlayer?.data?.isDrawer ?? false;
+      const hasGuessed = myPlayer?.data?.hasGuessed ?? false;
+      const roundPhase = myPlayer?.data?.roundPhase as string ?? 'drawing';
+      const word = (myPlayer?.data?.word as string) ?? '';
+      const choices = (myPlayer?.data?.answerChoices as string[]) ?? [];
+      const correctIdx = (myPlayer?.data?.correctAnswerIndex as number) ?? -1;
+      const roundTimer = (myPlayer?.data?.roundTimer as number) ?? 0;
+      const colors = ['#3BFF6A', '#FF3B3B', '#3B8BFF', '#FFE03B'];
+      const labels = ['A', 'B', 'X', 'Y'];
+      const buttons = ['a', 'b', 'x', 'y'];
+
+      if (isDrawer) {
+        return (
+          <div style={{ ...btnStyles.grid1, flexDirection: 'column', gap: '8px' }}>
+            <div style={{ fontSize: 14, opacity: 0.6 }}>DRAW:</div>
+            <div style={{ fontSize: 28, fontWeight: 900 }}>{word}</div>
+            <div style={{ fontSize: 12, opacity: 0.4 }}>Use joystick to draw · {roundTimer}s left</div>
+          </div>
+        );
+      }
+
+      if (hasGuessed) {
+        return (
+          <div style={{ ...btnStyles.grid1, flexDirection: 'column', gap: '8px' }}>
+            <div style={{ fontSize: 20, fontWeight: 700 }}>Answer locked in!</div>
+            <div style={{ fontSize: 14, opacity: 0.5 }}>Waiting for others...</div>
+          </div>
+        );
+      }
+
+      if (roundPhase === 'reveal') {
+        return (
+          <div style={{ ...btnStyles.grid1, flexDirection: 'column', gap: '8px' }}>
+            <div style={{ fontSize: 20, fontWeight: 700 }}>Answer: {word}</div>
+          </div>
+        );
+      }
+
       return (
-        <div style={btnStyles.grid2}>
-          <ActionButton label="A" color="#3BFF6A" size="medium" onPress={() => pressButton('a')} />
-          <ActionButton label="B" color="#FF3B3B" size="medium" onPress={() => pressButton('b')} />
-          <ActionButton label="X" color="#3B8BFF" size="medium" onPress={() => pressButton('x')} />
-          <ActionButton label="Y" color="#FFE03B" size="medium" onPress={() => pressButton('y')} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '12px', height: '100%', justifyContent: 'center' }}>
+          <div style={{ fontSize: 14, opacity: 0.6, textAlign: 'center' }}>Hint: {word} · {roundTimer}s</div>
+          {choices.map((choice: string, i: number) => (
+            <button
+              key={i}
+              onTouchStart={(e) => { e.preventDefault(); pressButton(buttons[i]); if ('vibrate' in navigator) navigator.vibrate(20); }}
+              onClick={() => pressButton(buttons[i])}
+              style={{
+                padding: '14px 16px',
+                borderRadius: '14px',
+                background: `${colors[i]}22`,
+                border: `2px solid ${colors[i]}`,
+                color: 'white',
+                fontSize: 18,
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                gap: '10px',
+                alignItems: 'center',
+                touchAction: 'none',
+                userSelect: 'none',
+              }}
+            >
+              <span style={{
+                width: 28, height: 28, borderRadius: '50%',
+                background: `${colors[i]}44`, color: colors[i],
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontWeight: 900, fontSize: 14, flexShrink: 0,
+              }}>{labels[i]}</span>
+              {choice}
+            </button>
+          ))}
         </div>
       );
+    }
 
     case 'obstacle-gauntlet':
       return (
