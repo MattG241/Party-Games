@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Howl } from 'howler';
 import { GameState, PlayerState, GameId, COLOR_HEX, GAME_NAMES, GAME_EMOJIS, GAME_DURATIONS } from '@party-blast/shared';
 import { GameWebSocket } from './ws';
+import * as SFX from './sounds';
 
 // ─── Background Music ────────────────────────────────────────────────────────
 const bgMusic = new Howl({
@@ -105,13 +106,30 @@ type Screen = 'lobby' | 'game' | 'countdown' | 'vote' | 'results' | 'victory';
 let currentScreen: Screen = 'lobby';
 
 function showScreen(screen: Screen) {
+  if (currentScreen === screen) return;
+  const screens: Record<Screen, HTMLElement> = {
+    lobby: lobbyScreen,
+    game: hudEl,
+    countdown: countdownOverlay,
+    vote: voteScreen,
+    results: resultsScreen,
+    victory: victoryScreen,
+  };
+
+  // Hide all screens
+  for (const [key, el] of Object.entries(screens)) {
+    if (key !== screen) {
+      el.classList.add('hidden');
+      el.classList.remove('fade-in');
+    }
+  }
+
+  // Show target screen with animation
+  const target = screens[screen];
+  target.classList.remove('hidden');
+  target.classList.add('fade-in');
+
   currentScreen = screen;
-  lobbyScreen.classList.toggle('hidden', screen !== 'lobby');
-  hudEl.classList.toggle('hidden', screen !== 'game');
-  countdownOverlay.classList.toggle('hidden', screen !== 'countdown');
-  voteScreen.classList.toggle('hidden', screen !== 'vote');
-  resultsScreen.classList.toggle('hidden', screen !== 'results');
-  victoryScreen.classList.toggle('hidden', screen !== 'victory');
   // Hide trivia overlay when leaving game screen
   if (screen !== 'game') triviaOverlay.classList.add('hidden');
 }
@@ -1068,13 +1086,33 @@ function updateHUD(state: GameState) {
   // Round
   roundEl.textContent = `ROUND ${state.round + 1}/${state.totalRounds}`;
 
-  // Game title — show team scores for arena-ball
+  // Game title — game-specific HUD in title area
   if (state.gameId) {
     if (state.gameId === 'arena-ball' && state.players.length > 0) {
       const ts = state.players[0]?.data?.teamScores as number[] | undefined;
       if (ts) {
         gameTitleEl.innerHTML = `<span style="color:#3B8BFF">${ts[0]}</span> ⚽ <span style="color:#FF3B3B">${ts[1]}</span>`;
       }
+    } else if (state.gameId === 'bomb-tag' && state.players.length > 0) {
+      const d = state.players[0]?.data;
+      const round = (d?.round as number) ?? 1;
+      const totalRounds = (d?.totalRounds as number) ?? 5;
+      const fuseProgress = (d?.fuseProgress as number) ?? 0;
+      const barColor = fuseProgress > 0.7 ? '#FF0000' : fuseProgress > 0.4 ? '#FF8C3B' : '#FFE03B';
+      gameTitleEl.innerHTML = `BOMB TAG · R${round}/${totalRounds} <span style="display:inline-block;width:80px;height:8px;background:rgba(255,255,255,0.1);border-radius:4px;vertical-align:middle;margin-left:8px;overflow:hidden"><span style="display:block;width:${(1-fuseProgress)*100}%;height:100%;background:${barColor};border-radius:4px"></span></span>`;
+    } else if (state.gameId === 'doodle-dash' && state.players.length > 0) {
+      const d = state.players[0]?.data;
+      const word = (d?.word as string) ?? '';
+      const phase = (d?.roundPhase as string) ?? 'drawing';
+      const rnd = (d?.internalRound as number) ?? 0;
+      const total = (d?.totalInternalRounds as number) ?? 1;
+      gameTitleEl.innerHTML = phase === 'reveal'
+        ? `DOODLE DASH · <span style="color:#3BFF6A">${word}</span>`
+        : `DOODLE DASH · ${word} · R${rnd + 1}/${total}`;
+    } else if (state.gameId === 'rhythm-riot' && state.players.length > 0) {
+      const d = state.players[0]?.data;
+      const progress = (d?.songProgress as number) ?? 0;
+      gameTitleEl.innerHTML = `RHYTHM RIOT <span style="display:inline-block;width:100px;height:6px;background:rgba(255,255,255,0.1);border-radius:3px;vertical-align:middle;margin-left:8px;overflow:hidden"><span style="display:block;width:${progress*100}%;height:100%;background:#C03BFF;border-radius:3px"></span></span>`;
     } else {
       gameTitleEl.textContent = (GAME_NAMES[state.gameId] ?? state.gameId).toUpperCase();
     }
@@ -1183,6 +1221,7 @@ function showVoteScreen(options: GameId[], votes: Record<string, number>) {
 // ─── Results Screen ───────────────────────────────────────────────────────────
 function showResults(state: GameState, gameScores: Record<string, number>, cumScores: Record<string, number>) {
   showScreen('results');
+  SFX.sfxScoreReveal();
   document.getElementById('results-subtitle')!.textContent = `Round ${state.round} of ${state.totalRounds}`;
 
   const sorted = [...state.players].sort((a, b) => (cumScores[b.id] ?? 0) - (cumScores[a.id] ?? 0));
@@ -1214,6 +1253,7 @@ function showResults(state: GameState, gameScores: Record<string, number>, cumSc
 // ─── Victory Screen ───────────────────────────────────────────────────────────
 function showVictory(players: PlayerState[], scores: Record<string, number>) {
   showScreen('victory');
+  SFX.sfxVictory();
 
   const sorted = [...players].sort((a, b) => (scores[b.id] ?? 0) - (scores[a.id] ?? 0));
   const [first, second, third] = sorted;
@@ -1319,9 +1359,11 @@ function runCountdown(gameId: GameId, seconds: number) {
       clearInterval(interval);
       countdownNumEl.textContent = 'GO!';
       countdownNumEl.style.color = '#3BFF6A';
+      SFX.sfxCountdownGo();
       setTimeout(() => showScreen('game'), 700);
     } else {
       countdownNumEl.textContent = remaining.toString();
+      SFX.sfxCountdownTick();
     }
   }, 1000);
 }
@@ -1394,6 +1436,27 @@ gws.onMessage((msg) => {
         updateHUD(msg);
         updatePlayerMeshes(msg.players);
         updateEntityMeshes(msg.entities);
+        // Process game events for sound effects
+        if (msg.events) {
+          for (const evt of msg.events) {
+            switch (evt.event) {
+              case 'elimination': SFX.sfxElimination(); break;
+              case 'goal': SFX.sfxGoal(); break;
+              case 'bomb_pass': SFX.sfxBombPass(); break;
+              case 'ring_out': SFX.sfxRingOut(); break;
+              case 'platform_fall': SFX.sfxPlatformFall(); break;
+              case 'pickup': SFX.sfxTargetHit(); break;
+              case 'lap_complete': SFX.sfxLapComplete(); break;
+              case 'finish_line': SFX.sfxFinishLine(); break;
+              case 'score_update': {
+                const correct = (evt.data as any)?.correct;
+                if (correct === true) SFX.sfxCorrectAnswer();
+                else if (correct === false) SFX.sfxWrongAnswer();
+                break;
+              }
+            }
+          }
+        }
         // Hide trivia overlay if not in trivia game or no question entity
         if (msg.gameId !== 'trivia-royale' || !msg.entities.some((e: any) => e.type === 'trivia_question')) {
           triviaOverlay.classList.add('hidden');

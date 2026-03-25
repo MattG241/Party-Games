@@ -14,10 +14,18 @@ interface DoodlePlayer {
 }
 
 const WORDS = [
+  // Easy
   'cat', 'dog', 'house', 'tree', 'car', 'sun', 'moon', 'fish', 'bird', 'star',
   'boat', 'cake', 'hat', 'shoe', 'ball', 'flag', 'bell', 'cup', 'key', 'book',
   'heart', 'cloud', 'flower', 'apple', 'guitar', 'rocket', 'pizza', 'crown', 'sword', 'ghost',
   'robot', 'dragon', 'castle', 'rainbow', 'unicorn', 'diamond', 'anchor', 'cactus', 'mushroom', 'volcano',
+  // Medium
+  'penguin', 'bicycle', 'camera', 'scissors', 'umbrella', 'ladder', 'candle', 'piano', 'bridge', 'hammer',
+  'turtle', 'whale', 'lighthouse', 'snowman', 'butterfly', 'spider', 'tornado', 'mountain', 'compass', 'trophy',
+  'helmet', 'glasses', 'skateboard', 'surfboard', 'airplane', 'helicopter', 'telescope', 'satellite', 'igloo', 'tent',
+  // Hard
+  'waterfall', 'fireworks', 'dinosaur', 'treasure', 'pirate', 'mermaid', 'wizard', 'vampire', 'alien', 'ninja',
+  'astronaut', 'submarine', 'parachute', 'trampoline', 'windmill', 'scarecrow', 'skeleton', 'jellyfish', 'octopus', 'porcupine',
 ];
 
 export class DoodleDash extends BaseGame {

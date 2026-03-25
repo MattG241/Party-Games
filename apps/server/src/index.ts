@@ -117,6 +117,28 @@ wss.on('connection', (ws: WebSocket) => {
         currentPlayerId = player.id;
         currentRoomCode = msg.code;
         sendToPlayer(ws, { type: 'room_joined', roomInfo: getRoomInfo(room), playerId: player.id });
+        // If a game is active, send current state immediately so they resume
+        if (room.phase === 'playing') {
+          const engine = activeEngines.get(msg.code);
+          if (engine) {
+            const result = engine.getState();
+            sendToPlayer(ws, {
+              type: 'state',
+              tick: 0,
+              timestamp: Date.now(),
+              gameId: room.currentGame,
+              phase: result.phase,
+              timeRemaining: result.timeRemaining,
+              players: result.players,
+              entities: result.entities,
+              events: [],
+              roomCode: room.code,
+              scores: result.scores,
+              round: room.currentRound,
+              totalRounds: room.settings.totalRounds,
+            });
+          }
+        }
         broadcastToRoom(room, {
           type: 'player_joined',
           player: {

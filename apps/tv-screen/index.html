@@ -453,7 +453,23 @@
 
     /* Utility */
     .hidden { display: none !important; }
-    .screen { transition: opacity 0.3s; }
+    .screen-overlay {
+      transition: opacity 0.4s ease, transform 0.4s ease;
+      opacity: 1;
+      transform: scale(1);
+    }
+    .screen-overlay.fade-out {
+      opacity: 0;
+      transform: scale(0.97);
+      pointer-events: none;
+    }
+    .screen-overlay.fade-in {
+      animation: fadeSlideIn 0.4s ease both;
+    }
+    @keyframes fadeSlideIn {
+      from { opacity: 0; transform: translateY(20px) scale(0.97); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
   </style>
 </head>
 <body>
