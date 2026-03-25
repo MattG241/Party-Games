@@ -139,12 +139,39 @@ function renderButtons(
         </div>
       );
 
-    case 'bomb-tag':
+    case 'bomb-tag': {
+      const hasBomb = myPlayer?.data?.hasBomb ?? false;
+      const tagCd = (myPlayer?.data?.tagCooldown as number) ?? 0;
+      const canTag = tagCd <= 0;
+      const fuseProgress = (myPlayer?.data?.fuseProgress as number) ?? 0;
+      const round = (myPlayer?.data?.round as number) ?? 1;
+      const totalRounds = (myPlayer?.data?.totalRounds as number) ?? 5;
       return (
-        <div style={btnStyles.grid1}>
-          <ActionButton label="TAG" color="#FF3B3B" size="large" onPress={() => pressButton('tag')} emoji="💣" />
+        <div style={{ ...btnStyles.grid1, flexDirection: 'column', gap: '12px' }}>
+          {hasBomb && (
+            <div style={{ width: '140px', height: '10px', background: 'rgba(255,255,255,0.1)', borderRadius: '5px', overflow: 'hidden' }}>
+              <div style={{
+                width: `${(1 - fuseProgress) * 100}%`,
+                height: '100%',
+                background: fuseProgress > 0.7 ? '#FF0000' : fuseProgress > 0.4 ? '#FF8C3B' : '#FFE03B',
+                borderRadius: '5px',
+                transition: 'width 0.3s',
+              }} />
+            </div>
+          )}
+          <ActionButton
+            label={hasBomb ? (canTag ? 'TAG!' : `${tagCd.toFixed(1)}s`) : 'NO BOMB'}
+            color={hasBomb ? '#FF3B3B' : '#333333'}
+            size="large"
+            onPress={() => pressButton('tag')}
+            emoji={hasBomb ? '💣' : '🏃'}
+          />
+          <div style={{ fontSize: 12, opacity: 0.5, textAlign: 'center' }}>
+            Round {round}/{totalRounds} · {hasBomb ? 'PASS THE BOMB!' : 'Run away!'}
+          </div>
         </div>
       );
+    }
 
     case 'sumo-smash':
       return (

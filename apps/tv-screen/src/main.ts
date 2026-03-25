@@ -224,11 +224,23 @@ function buildBombTagScene() {
   gridLines.rotation.x = -Math.PI / 2;
   scene.add(gridLines);
 
-  // Arena boundary neon ring
-  const ringGeo = new THREE.TorusGeometry(13, 0.15, 8, 64);
-  const ringMat = new THREE.MeshBasicMaterial({ color: 0xFF3B3B });
+  // Circular arena boundary (matches server ARENA_RADIUS = 12)
+  const ringPts: THREE.Vector3[] = [];
+  for (let i = 0; i <= 128; i++) {
+    const a = (i / 128) * Math.PI * 2;
+    ringPts.push(new THREE.Vector3(Math.cos(a) * 12, 0.05, Math.sin(a) * 12));
+  }
+  const ringLine = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(ringPts),
+    new THREE.LineBasicMaterial({ color: 0xFF3B3B })
+  );
+  scene.add(ringLine);
+  // Glowing ring wall
+  const ringGeo = new THREE.TorusGeometry(12, 0.15, 8, 64);
+  const ringMat = new THREE.MeshBasicMaterial({ color: 0xFF3B3B, transparent: true, opacity: 0.6 });
   const ring = new THREE.Mesh(ringGeo, ringMat);
   ring.rotation.x = Math.PI / 2;
+  ring.position.y = 0.5;
   scene.add(ring);
 
   // Corner lights
@@ -240,9 +252,8 @@ function buildBombTagScene() {
     scene.add(pl);
   });
 
-  camera.position.set(0, 28, 0);
+  camera.position.set(0, 24, 14);
   camera.lookAt(0, 0, 0);
-  camera.up.set(0, 0, -1);
 }
 
 function buildArenaBallScene() {
@@ -836,6 +847,26 @@ function updateEntityMeshes(entities: GameState['entities']) {
         mat.emissive.setHex(0x1144aa);
         mat.emissiveIntensity = 0.2;
       }
+    } else if (entity.type === 'bomb') {
+      // Floating bomb entity above the holder
+      let mesh = entityMeshes.get(entity.id) as THREE.Mesh;
+      if (!mesh) {
+        const geo = new THREE.SphereGeometry(0.4, 16, 16);
+        const mat = new THREE.MeshStandardMaterial({ color: 0x222222, emissive: 0xFF3B3B, emissiveIntensity: 0.5 });
+        mesh = new THREE.Mesh(geo, mat);
+        scene.add(mesh);
+        entityMeshes.set(entity.id, mesh);
+      }
+      const fuseProgress = (entity.data?.fuseProgress as number) ?? 0;
+      mesh.position.set(entity.position.x, 1.5 + Math.sin(Date.now() * 0.005) * 0.2, entity.position.z);
+      // Pulse faster as fuse runs out
+      const mat = mesh.material as THREE.MeshStandardMaterial;
+      const pulseSpeed = 0.005 + fuseProgress * 0.03;
+      mat.emissiveIntensity = 0.5 + Math.sin(Date.now() * pulseSpeed) * 0.5 * (0.5 + fuseProgress);
+      mat.emissive.setHex(fuseProgress > 0.7 ? 0xFF0000 : 0xFF3B3B);
+      // Scale up as fuse runs out
+      const s = 1 + fuseProgress * 0.5;
+      mesh.scale.setScalar(s);
     } else if (entity.type === 'ball') {
       let mesh = entityMeshes.get(entity.id) as THREE.Mesh;
       if (!mesh) {
