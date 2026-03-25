@@ -14,7 +14,7 @@ export function LobbyScreen({ roomInfo, playerId, onStartGame, onVote, voteOptio
   const me = roomInfo.players.find(p => p.id === playerId);
   const isHost = me?.isHost ?? false;
   const myColor = me ? COLOR_HEX[me.color] : '#ffffff';
-  const canStart = roomInfo.players.length >= 2;
+  const canStart = roomInfo.players.length >= 1;
 
   if (roomInfo.phase === 'game-select' && voteOptions.length > 0) {
     return (

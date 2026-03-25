@@ -3,7 +3,7 @@ import { GameId, PlayerColor, RoomSettings } from '../types';
 export const TICK_RATE = 60;
 export const INPUT_RATE = 30;
 export const MAX_PLAYERS = 8;
-export const MIN_PLAYERS = 2;
+export const MIN_PLAYERS = 1;
 export const ROOM_CODE_LENGTH = 4;
 export const ROOM_EXPIRY_MS = 2 * 60 * 60 * 1000; // 2 hours
 export const RECONNECT_WINDOW_MS = 30 * 1000; // 30 seconds

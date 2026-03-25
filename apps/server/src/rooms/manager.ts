@@ -6,26 +6,15 @@ import { ConnectedPlayer, GameRoom } from './types';
 
 export const rooms = new Map<string, GameRoom>();
 
-export function createRoom(hostWs: WebSocket): { room: GameRoom; player: ConnectedPlayer } {
+export function createRoom(tvWs: WebSocket): { room: GameRoom; tvId: string } {
   let code = generateRoomCode();
   while (rooms.has(code)) code = generateRoomCode();
 
-  const hostId = generatePlayerId();
-  const host: ConnectedPlayer = {
-    ws: hostWs,
-    id: hostId,
-    name: 'Host',
-    color: 'red',
-    isHost: true,
-    score: 0,
-    connected: true,
-    lastSeen: Date.now(),
-    roomCode: code,
-  };
+  const tvId = generatePlayerId();
 
   const room: GameRoom = {
     code,
-    players: new Map([[hostId, host]]),
+    players: new Map(),
     phase: 'lobby',
     currentGame: null,
     settings: { ...DEFAULT_SETTINGS },
@@ -34,12 +23,13 @@ export function createRoom(hostWs: WebSocket): { room: GameRoom; player: Connect
     votes: new Map(),
     voteOptions: [],
     currentRound: 0,
-    cumulativeScores: new Map([[hostId, 0]]),
+    cumulativeScores: new Map(),
     gameLoopInterval: null,
+    tvWs: tvWs,
   };
 
   rooms.set(code, room);
-  return { room, player: host };
+  return { room, tvId };
 }
 
 export function joinRoom(
@@ -62,12 +52,15 @@ export function joinRoom(
     assignedColor = available[0] ?? 'red';
   }
 
+  // First player to join becomes host
+  const isFirstPlayer = room.players.size === 0;
+
   const player: ConnectedPlayer = {
     ws,
     id: playerId,
     name: playerName.slice(0, 12),
     color: assignedColor,
-    isHost: false,
+    isHost: isFirstPlayer,
     score: 0,
     connected: true,
     lastSeen: Date.now(),

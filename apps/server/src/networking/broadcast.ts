@@ -10,10 +10,15 @@ export function sendToPlayer(ws: WebSocket, msg: ServerMessage): void {
 
 export function broadcastToRoom(room: GameRoom, msg: ServerMessage): void {
   const data = JSON.stringify(msg);
+  // Send to all phone players
   for (const player of room.players.values()) {
     if (player.connected && player.ws.readyState === WebSocket.OPEN) {
       player.ws.send(data);
     }
+  }
+  // Also send to TV screen
+  if (room.tvWs && room.tvWs.readyState === WebSocket.OPEN) {
+    room.tvWs.send(data);
   }
 }
 

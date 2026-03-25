@@ -181,6 +181,7 @@ export class PlatformPanic extends BaseGame {
 
   isFinished(): boolean {
     const alive = [...this.panicPlayers.values()].filter(p => !p.eliminated);
-    return alive.length <= 1 || super.isFinished();
+    const hasEliminations = this.eliminationOrder.length > 0;
+    return (hasEliminations && alive.length <= 1) || super.isFinished();
   }
 }

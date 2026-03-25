@@ -27,4 +27,5 @@ export interface GameRoom {
   currentRound: number;
   cumulativeScores: Map<string, number>;
   gameLoopInterval: ReturnType<typeof setInterval> | null;
+  tvWs?: WebSocket;
 }

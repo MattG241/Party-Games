@@ -75,10 +75,10 @@ wss.on('connection', (ws: WebSocket) => {
 
     switch (msg.type) {
       case 'create_room': {
-        const { room, player } = createRoom(ws);
-        currentPlayerId = player.id;
+        const { room, tvId } = createRoom(ws);
+        currentPlayerId = tvId;
         currentRoomCode = room.code;
-        sendToPlayer(ws, { type: 'room_created', code: room.code, playerId: player.id });
+        sendToPlayer(ws, { type: 'room_created', code: room.code, playerId: tvId });
         break;
       }
 
@@ -137,8 +137,8 @@ wss.on('connection', (ws: WebSocket) => {
         if (!room) return;
         const player = room.players.get(msg.playerId);
         if (!player?.isHost) return;
-        if (room.players.size < 2) {
-          sendToPlayer(ws, { type: 'room_error', message: 'Need at least 2 players to start.' });
+        if (room.players.size < 1) {
+          sendToPlayer(ws, { type: 'room_error', message: 'Need at least 1 player to start.' });
           return;
         }
         const gameId = room.settings.enabledGames[0] ?? 'platform-panic';

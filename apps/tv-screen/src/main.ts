@@ -877,7 +877,7 @@ function updateLobbyPlayers(players: PlayerState[]) {
     ${emptySlots}
   `;
 
-  startHintEl.classList.toggle('hidden', players.length < 2);
+  startHintEl.classList.toggle('hidden', players.length < 1);
 }
 
 // ─── Vote Screen ──────────────────────────────────────────────────────────────

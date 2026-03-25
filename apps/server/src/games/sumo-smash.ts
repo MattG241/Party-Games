@@ -161,6 +161,7 @@ export class SumoSmash extends BaseGame {
 
   isFinished(): boolean {
     const alive = [...this.sumoPlayers.values()].filter(p => !p.eliminated);
-    return alive.length <= 1 || super.isFinished();
+    const hasEliminations = this.eliminationOrder.length > 0;
+    return (hasEliminations && alive.length <= 1) || super.isFinished();
   }
 }
