@@ -9,8 +9,31 @@
   <link rel="manifest" href="/manifest.json" />
   <title>Party Blast Controller</title>
   <style>
-    * { -webkit-tap-highlight-color: transparent; }
-    body { margin: 0; background: #0a0a1a; }
+    * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #0a0a1a;
+      overflow: hidden;
+      position: fixed;
+      width: 100%;
+      height: 100%;
+      /* Prevent pull-to-refresh and elastic bounce on iOS */
+      overscroll-behavior: none;
+      -webkit-overflow-scrolling: touch;
+    }
+    #root {
+      width: 100%;
+      height: 100%;
+      overflow-y: auto;
+      overscroll-behavior: none;
+    }
+    /* Prevent text selection during gameplay */
+    button, [role="button"] {
+      -webkit-user-select: none;
+      user-select: none;
+      touch-action: manipulation;
+    }
   </style>
 </head>
 <body>

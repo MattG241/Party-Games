@@ -6,11 +6,12 @@ interface GameControllerProps {
   gameId: GameId;
   myColor: PlayerColor;
   myPlayer: PlayerState | undefined;
+  allPlayers: PlayerState[];
   timeRemaining: number;
   onInput: (data: { joystick?: { x: number; y: number }; buttons?: Record<string, boolean> }) => void;
 }
 
-export function GameController({ gameId, myColor, myPlayer, timeRemaining, onInput }: GameControllerProps) {
+export function GameController({ gameId, myColor, myPlayer, allPlayers, timeRemaining, onInput }: GameControllerProps) {
   const hex = COLOR_HEX[myColor];
   const joystickZoneRef = useRef<HTMLDivElement>(null);
   const stateRef = useRef<{ joystick: { x: number; y: number }; buttons: Record<string, boolean> }>({
@@ -111,14 +112,34 @@ export function GameController({ gameId, myColor, myPlayer, timeRemaining, onInp
           <div style={{ ...styles.eliminatedTitle, color: isFinished ? '#3BFF6A' : '#FF3B3B' }}>
             {isFinished ? 'Race Complete!' : "You're out!"}
           </div>
-          <div style={styles.eliminatedHint}>Watch the TV screen</div>
-          {myPlayer?.data?.points !== undefined && (
-            <div style={{ fontSize: 18, fontWeight: 700, marginTop: 8 }}>
-              Your score: {myPlayer.data.points as number}
-            </div>
-          )}
-          <div style={{ fontSize: 28, marginTop: 12 }}>
-            {timerStr}
+          <div style={{ fontSize: 28, marginTop: 4 }}>{timerStr}</div>
+          {/* Spectator mini-leaderboard */}
+          <div style={{ width: '100%', maxWidth: 280, marginTop: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {[...allPlayers]
+              .sort((a, b) => (b.data?.points as number ?? b.score) - (a.data?.points as number ?? a.score))
+              .slice(0, 6)
+              .map((p, i) => {
+                const ph = COLOR_HEX[p.color] ?? '#fff';
+                const isMe = p.id === myPlayer?.id;
+                return (
+                  <div key={p.id} style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    padding: '6px 10px', borderRadius: 8,
+                    background: isMe ? `${ph}15` : 'rgba(255,255,255,0.03)',
+                    fontSize: 13,
+                  }}>
+                    <span style={{ opacity: 0.5, minWidth: 20 }}>#{i + 1}</span>
+                    <span style={{ width: 20, height: 20, borderRadius: '50%', background: `${ph}33`, color: ph,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 900, flexShrink: 0 }}>
+                      {p.name.charAt(0).toUpperCase()}
+                    </span>
+                    <span style={{ flex: 1, fontWeight: isMe ? 700 : 400, color: isMe ? ph : 'white' }}>
+                      {p.name}{isMe ? ' (you)' : ''}{p.eliminated ? ' 💀' : ''}
+                    </span>
+                    <span style={{ fontWeight: 700, fontSize: 14 }}>{p.data?.points as number ?? p.score}</span>
+                  </div>
+                );
+              })}
           </div>
         </div>
       ) : (

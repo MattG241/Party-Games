@@ -740,10 +740,50 @@ function setupScene(gameId: GameId | null) {
 }
 
 // ─── Player Rendering ─────────────────────────────────────────────────────────
+function getPlayerGeometry(): THREE.BufferGeometry {
+  switch (currentSceneType) {
+    case 'kart-blitz': {
+      // Wedge-shaped kart (wider at back, narrow at front)
+      const shape = new THREE.Shape();
+      shape.moveTo(-0.5, -0.6);
+      shape.lineTo(0.5, -0.6);
+      shape.lineTo(0.3, 0.7);
+      shape.lineTo(-0.3, 0.7);
+      shape.closePath();
+      const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.4, bevelEnabled: false });
+      geo.rotateX(-Math.PI / 2);
+      geo.translate(0, 0.3, 0);
+      return geo;
+    }
+    case 'sumo-smash': {
+      // Wider, heavier sphere for sumo wrestlers
+      const geo = new THREE.SphereGeometry(0.9, 16, 12);
+      geo.scale(1, 0.8, 1);
+      return geo;
+    }
+    case 'arena-ball': {
+      // Slightly flattened capsule
+      const geo = new THREE.CapsuleGeometry(0.5, 0.4, 8, 12);
+      return geo;
+    }
+    case 'obstacle-gauntlet': {
+      // Upright cylinder — runner shape
+      return new THREE.CylinderGeometry(0.4, 0.4, 1.2, 12);
+    }
+    case 'bomb-tag': {
+      // Rounded box
+      const geo = new THREE.BoxGeometry(0.9, 0.9, 0.9, 2, 2, 2);
+      return geo;
+    }
+    default:
+      return new THREE.SphereGeometry(0.7, 16, 16);
+  }
+}
+
 function getOrCreatePlayerMesh(player: PlayerState): THREE.Mesh {
   let mesh = playerMeshes.get(player.id);
   if (!mesh) {
-    const geo = new THREE.SphereGeometry(0.7, 16, 16);
+    const geo = getPlayerGeometry();
     const hex = COLOR_HEX[player.color] ?? '#ffffff';
     const mat = new THREE.MeshStandardMaterial({
       color: new THREE.Color(hex),
@@ -1388,10 +1428,12 @@ gws.onMessage((msg) => {
 
     case 'player_joined':
       updateLobbyPlayers(msg.roomInfo.players);
+      SFX.sfxPlayerJoin();
       break;
 
     case 'player_left':
       updateLobbyPlayers(msg.roomInfo.players);
+      SFX.sfxPlayerLeave();
       break;
 
     case 'game_starting':
@@ -1400,6 +1442,7 @@ gws.onMessage((msg) => {
 
     case 'game_votes': {
       if (voteTimer) clearInterval(voteTimer);
+      SFX.sfxVoteSelect();
       showVoteScreen(msg.options, msg.votes as Record<string, number>);
       let elapsed = 0;
       voteTimer = setInterval(() => {
@@ -1440,7 +1483,12 @@ gws.onMessage((msg) => {
         if (msg.events) {
           for (const evt of msg.events) {
             switch (evt.event) {
-              case 'elimination': SFX.sfxElimination(); break;
+              case 'elimination': {
+                const reason = (evt.data as any)?.reason;
+                if (reason === 'bomb') SFX.sfxExplosion();
+                else SFX.sfxElimination();
+                break;
+              }
               case 'goal': SFX.sfxGoal(); break;
               case 'bomb_pass': SFX.sfxBombPass(); break;
               case 'ring_out': SFX.sfxRingOut(); break;

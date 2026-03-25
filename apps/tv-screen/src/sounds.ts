@@ -130,3 +130,17 @@ export function sfxScoreReveal() {
   playTone(440, 0.06, 'sine', 0.06);
   setTimeout(() => playTone(550, 0.1, 'sine', 0.08), 60);
 }
+
+export function sfxPlayerJoin() {
+  playTone(600, 0.08, 'sine', 0.08);
+  setTimeout(() => playTone(800, 0.1, 'sine', 0.08), 70);
+}
+
+export function sfxPlayerLeave() {
+  playTone(400, 0.1, 'sine', 0.06);
+  setTimeout(() => playTone(300, 0.12, 'sine', 0.05), 80);
+}
+
+export function sfxVoteSelect() {
+  playTone(700, 0.06, 'triangle', 0.06);
+}

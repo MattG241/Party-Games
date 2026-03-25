@@ -242,6 +242,7 @@ export default function App() {
           gameId={currentGameId}
           myColor={myColor}
           myPlayer={myPlayer}
+          allPlayers={gameState.players}
           timeRemaining={gameState.timeRemaining}
           onInput={handleInput}
         />
