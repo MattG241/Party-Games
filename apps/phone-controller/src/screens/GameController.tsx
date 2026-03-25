@@ -153,12 +153,26 @@ function renderButtons(
         </div>
       );
 
-    case 'platform-panic':
+    case 'platform-panic': {
+      const jumpCd = (myPlayer?.data?.jumpCooldown as number) ?? 0;
+      const canJump = jumpCd <= 0;
+      const aliveCount = (myPlayer?.data?.aliveCount as number) ?? 0;
+      const activePlats = (myPlayer?.data?.activePlatforms as number) ?? 0;
       return (
-        <div style={btnStyles.grid1}>
-          <ActionButton label="JUMP" color={hex} size="large" onPress={() => pressButton('jump')} emoji="⬆️" />
+        <div style={{ ...btnStyles.grid1, flexDirection: 'column', gap: '12px' }}>
+          <ActionButton
+            label={canJump ? 'JUMP' : `${jumpCd.toFixed(1)}s`}
+            color={canJump ? hex : '#555555'}
+            size="large"
+            onPress={() => pressButton('jump')}
+            emoji={canJump ? '⬆️' : '⏳'}
+          />
+          <div style={{ fontSize: 12, opacity: 0.5, textAlign: 'center' }}>
+            {aliveCount} alive · {activePlats} platforms
+          </div>
         </div>
       );
+    }
 
     case 'bullseye-bonanza':
       return (

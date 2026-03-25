@@ -821,11 +821,16 @@ function updateEntityMeshes(entities: GameState['entities']) {
       // Crumble effect
       const mat = mesh.material as THREE.MeshStandardMaterial;
       if (entity.type === 'platform_crumbling') {
-        const t = (entity.data?.crumbleTimer as number ?? 2.5) / 2.5;
-        mat.color.setHex(t < 0.5 ? 0xff4400 : 0xffaa00);
-        mat.emissive.setHex(t < 0.5 ? 0xff2200 : 0xff6600);
-        mat.emissiveIntensity = 0.5 + (1 - t) * 0.5;
-        mesh.position.y += (Math.random() - 0.5) * (1 - t) * 0.05;
+        const duration = (entity.data?.crumbleDuration as number) ?? 2.5;
+        const timer = (entity.data?.crumbleTimer as number) ?? duration;
+        const t = Math.max(0, timer / duration); // 1 = fresh, 0 = about to fall
+        mat.color.setHex(t < 0.3 ? 0xff2200 : t < 0.6 ? 0xff6600 : 0xffaa00);
+        mat.emissive.setHex(t < 0.3 ? 0xff2200 : t < 0.6 ? 0xff4400 : 0xff6600);
+        mat.emissiveIntensity = 0.4 + (1 - t) * 0.6;
+        // Shake more as timer runs out
+        mesh.position.y = entity.position.y + (Math.random() - 0.5) * (1 - t) * 0.08;
+        // Sink slightly as it crumbles
+        mesh.position.y -= (1 - t) * 0.15;
       } else {
         mat.color.setHex(0x4488dd);
         mat.emissive.setHex(0x1144aa);

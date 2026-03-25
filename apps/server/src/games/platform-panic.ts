@@ -10,6 +10,7 @@ interface Platform {
   active: boolean;
   crumbling: boolean;
   crumbleTimer: number;
+  crumbleDuration: number; // total time before falling (varies by position)
 }
 
 interface PanicPlayer {
@@ -19,9 +20,20 @@ interface PanicPlayer {
   z: number;
   vx: number;
   vz: number;
+  vy: number;
   eliminated: boolean;
   finishPosition: number;
+  jumpCooldown: number;
+  isGrounded: boolean;
 }
+
+const PLAYER_RADIUS = 0.6;
+const PLATFORM_RADIUS = 1.3;
+const MOVE_SPEED = 6;
+const FRICTION = 0.88;
+const GRAVITY = 12;
+const JUMP_VELOCITY = 6;
+const JUMP_COOLDOWN = 1.2;
 
 export class PlatformPanic extends BaseGame {
   private platforms: Platform[] = [];
@@ -41,6 +53,9 @@ export class PlatformPanic extends BaseGame {
     for (let row = -3; row <= 3; row++) {
       for (let col = -3; col <= 3; col++) {
         if (Math.abs(row) + Math.abs(col) <= 4) {
+          const distFromCenter = Math.sqrt(col * col + row * row);
+          // Outer platforms crumble slower, center platforms crumble faster
+          const crumbleDuration = 1.5 + distFromCenter * 0.5;
           this.platforms.push({
             id: `plat_${id++}`,
             x: col * 3 + (row % 2 === 0 ? 1.5 : 0),
@@ -48,6 +63,7 @@ export class PlatformPanic extends BaseGame {
             active: true,
             crumbling: false,
             crumbleTimer: 0,
+            crumbleDuration,
           });
         }
       }
@@ -65,8 +81,11 @@ export class PlatformPanic extends BaseGame {
         z: Math.sin(angle) * 4,
         vx: 0,
         vz: 0,
+        vy: 0,
         eliminated: false,
         finishPosition: 0,
+        jumpCooldown: 0,
+        isGrounded: true,
       });
       i++;
     }
@@ -75,10 +94,19 @@ export class PlatformPanic extends BaseGame {
   handleInput(playerId: string, data: Record<string, unknown>): void {
     const player = this.panicPlayers.get(playerId);
     if (!player || player.eliminated) return;
+
     const joystick = data.joystick as { x: number; y: number } | undefined;
     if (joystick) {
-      player.vx = joystick.x * 5;
-      player.vz = joystick.y * 5;
+      // Apply acceleration toward joystick direction
+      player.vx += joystick.x * MOVE_SPEED * 0.3;
+      player.vz += joystick.y * MOVE_SPEED * 0.3;
+    }
+
+    const buttons = data.buttons as Record<string, boolean> | undefined;
+    if (buttons?.jump && player.isGrounded && player.jumpCooldown <= 0) {
+      player.vy = JUMP_VELOCITY;
+      player.isGrounded = false;
+      player.jumpCooldown = JUMP_COOLDOWN;
     }
   }
 
@@ -86,39 +114,93 @@ export class PlatformPanic extends BaseGame {
     const alivePlayers = [...this.panicPlayers.values()].filter(p => !p.eliminated);
 
     for (const p of alivePlayers) {
+      // Cooldowns
+      if (p.jumpCooldown > 0) p.jumpCooldown -= dt;
+
+      // Apply friction
+      p.vx *= Math.pow(FRICTION, dt * 60);
+      p.vz *= Math.pow(FRICTION, dt * 60);
+
+      // Clamp horizontal speed
+      const hSpeed = Math.sqrt(p.vx * p.vx + p.vz * p.vz);
+      if (hSpeed > MOVE_SPEED) {
+        p.vx = (p.vx / hSpeed) * MOVE_SPEED;
+        p.vz = (p.vz / hSpeed) * MOVE_SPEED;
+      }
+
+      // Move horizontally
       p.x += p.vx * dt;
       p.z += p.vz * dt;
 
+      // Apply gravity
+      p.vy -= GRAVITY * dt;
+      p.y += p.vy * dt;
+
+      // Platform collision
       let onPlatform = false;
       for (const plat of this.platforms) {
         if (!plat.active) continue;
         const dx = p.x - plat.x;
         const dz = p.z - plat.z;
-        if (dx * dx + dz * dz < 2.25) {
-          onPlatform = true;
-          if (!plat.crumbling) {
-            plat.crumbling = true;
-            plat.crumbleTimer = 2.5;
+        if (dx * dx + dz * dz < PLATFORM_RADIUS * PLATFORM_RADIUS) {
+          // Player is over this platform
+          if (p.y <= 1 && p.vy <= 0) {
+            onPlatform = true;
+            p.y = 1;
+            p.vy = 0;
+            p.isGrounded = true;
+            // Start crumbling on contact
+            if (!plat.crumbling) {
+              plat.crumbling = true;
+              plat.crumbleTimer = plat.crumbleDuration;
+            }
           }
           break;
         }
       }
 
-      if (!onPlatform) {
-        p.y -= 9.8 * dt;
-        if (p.y < -5) {
-          p.eliminated = true;
-          this.eliminationOrder.push(p.id);
-          this.emitEvent({
-            type: 'event',
-            event: 'elimination',
-            data: { playerId: p.id },
-            affectedPlayers: [p.id],
-            timestamp: Date.now(),
-          });
+      // If not on any platform and below platform level, falling
+      if (!onPlatform && p.y <= 1) {
+        p.isGrounded = false;
+      }
+
+      // Elimination when fallen too far
+      if (p.y < -8) {
+        p.eliminated = true;
+        this.eliminationOrder.push(p.id);
+        this.emitEvent({
+          type: 'event',
+          event: 'elimination',
+          data: { playerId: p.id },
+          affectedPlayers: [p.id],
+          timestamp: Date.now(),
+        });
+      }
+    }
+
+    // Player-player collisions (bump each other)
+    for (let i = 0; i < alivePlayers.length; i++) {
+      for (let j = i + 1; j < alivePlayers.length; j++) {
+        const a = alivePlayers[i], b = alivePlayers[j];
+        const dx = b.x - a.x;
+        const dz = b.z - a.z;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist < PLAYER_RADIUS * 2 && dist > 0) {
+          const nx = dx / dist;
+          const nz = dz / dist;
+          // Push apart
+          const overlap = PLAYER_RADIUS * 2 - dist;
+          a.x -= nx * overlap * 0.5;
+          a.z -= nz * overlap * 0.5;
+          b.x += nx * overlap * 0.5;
+          b.z += nz * overlap * 0.5;
+          // Bump velocity
+          const bumpForce = 3;
+          a.vx -= nx * bumpForce;
+          a.vz -= nz * bumpForce;
+          b.vx += nx * bumpForce;
+          b.vz += nz * bumpForce;
         }
-      } else {
-        p.y = 1;
       }
     }
 
@@ -130,6 +212,7 @@ export class PlatformPanic extends BaseGame {
       }
     }
 
+    // Platform crumble timers
     for (const plat of this.platforms) {
       if (!plat.crumbling) continue;
       plat.crumbleTimer -= dt;
@@ -151,11 +234,17 @@ export class PlatformPanic extends BaseGame {
       id: plat.id,
       type: plat.crumbling ? 'platform_crumbling' : 'platform',
       position: { x: plat.x, y: 0, z: plat.z },
-      data: { active: plat.active, crumbleTimer: plat.crumbleTimer },
+      data: {
+        active: plat.active,
+        crumbleTimer: plat.crumbleTimer,
+        crumbleDuration: plat.crumbleDuration,
+      },
     }));
   }
 
   getPlayerStates(): PlayerState[] {
+    const aliveCount = [...this.panicPlayers.values()].filter(p => !p.eliminated).length;
+    const activePlatforms = this.platforms.filter(p => p.active).length;
     return [...this.room.players.values()].map(rp => {
       const pp = this.panicPlayers.get(rp.id);
       return {
@@ -168,6 +257,12 @@ export class PlatformPanic extends BaseGame {
         position: pp ? { x: pp.x, y: pp.y, z: pp.z } : { x: 0, y: 0, z: 0 },
         eliminated: pp?.eliminated ?? false,
         finishPosition: pp?.finishPosition ?? 0,
+        data: {
+          isGrounded: pp?.isGrounded ?? true,
+          jumpCooldown: Math.max(0, pp?.jumpCooldown ?? 0),
+          aliveCount,
+          activePlatforms,
+        },
       };
     });
   }
