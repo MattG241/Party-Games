@@ -3,6 +3,8 @@ import { Howl } from 'howler';
 import { GameState, PlayerState, GameId, COLOR_HEX, GAME_NAMES, GAME_EMOJIS, GAME_DURATIONS } from '@party-blast/shared';
 import { GameWebSocket } from './ws';
 import * as SFX from './sounds';
+import * as TEX from './textures';
+import * as FX from './particles';
 
 // ─── Background Music ────────────────────────────────────────────────────────
 const bgMusic = new Howl({
@@ -67,6 +69,7 @@ renderer.toneMappingExposure = 1.2;
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+FX.initParticles(scene);
 
 function resize() {
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -227,9 +230,11 @@ function buildBombTagScene() {
 
   scene.add(new THREE.AmbientLight(0x111122, 2));
 
-  // Neon grid floor
-  const gridGeo = new THREE.PlaneGeometry(30, 30, 20, 20);
-  const gridMat = new THREE.MeshBasicMaterial({ color: 0x1a1a2e, side: THREE.DoubleSide });
+  // Neon grid floor with texture
+  const neonTex = TEX.neonGridTexture('#3B8BFF', '#0a0a1e');
+  neonTex.repeat.set(2, 2);
+  const gridGeo = new THREE.PlaneGeometry(30, 30);
+  const gridMat = new THREE.MeshBasicMaterial({ map: neonTex, side: THREE.DoubleSide });
   const grid = new THREE.Mesh(gridGeo, gridMat);
   grid.rotation.x = -Math.PI / 2;
   grid.position.y = -0.1;
@@ -283,9 +288,11 @@ function buildArenaBallScene() {
   sun.castShadow = true;
   scene.add(sun);
 
-  // Field
+  // Field with grass texture
+  const fieldTex = TEX.grassTexture();
+  fieldTex.repeat.set(4, 3);
   const fieldGeo = new THREE.PlaneGeometry(22, 14);
-  const fieldMat = new THREE.MeshStandardMaterial({ color: 0x2d7a2d });
+  const fieldMat = new THREE.MeshStandardMaterial({ map: fieldTex, color: 0x3d8a3d });
   const field = new THREE.Mesh(fieldGeo, fieldMat);
   field.rotation.x = -Math.PI / 2;
   field.receiveShadow = true;
@@ -352,10 +359,12 @@ function buildSumoScene() {
   spot.castShadow = true;
   scene.add(spot);
 
-  // Dohyo (sumo ring)
+  // Dohyo (sumo ring) with wood texture
+  const woodTex = TEX.woodTexture();
+  woodTex.repeat.set(3, 3);
   const dohyo = new THREE.Mesh(
     new THREE.CylinderGeometry(10, 10, 0.5, 64),
-    new THREE.MeshStandardMaterial({ color: 0xc8a46e })
+    new THREE.MeshStandardMaterial({ map: woodTex, color: 0xd4b896 })
   );
   dohyo.receiveShadow = true;
   scene.add(dohyo);
@@ -383,6 +392,28 @@ function buildSumoScene() {
     new THREE.LineBasicMaterial({ color: 0xFF3B3B, transparent: true, opacity: 0.2 })
   ));
 
+  // Crowd stands (tiered seating around the ring)
+  const standMat = new THREE.MeshStandardMaterial({ color: 0x2a1a0a });
+  for (let tier = 0; tier < 3; tier++) {
+    const r = 13 + tier * 2.5;
+    const h = 0.5 + tier * 1;
+    const stand = new THREE.Mesh(
+      new THREE.TorusGeometry(r, 1, 4, 32),
+      new THREE.MeshStandardMaterial({ color: 0x2a1a0a + tier * 0x0a0a0a })
+    );
+    stand.rotation.x = Math.PI / 2;
+    stand.position.y = h;
+    scene.add(stand);
+  }
+  // Crowd "heads" (small spheres in the stands)
+  const crowdMat = new THREE.MeshBasicMaterial({ color: 0x887766 });
+  for (let i = 0; i < 40; i++) {
+    const a = (i / 40) * Math.PI * 2;
+    const r = 13 + Math.random() * 5;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 4, 4), crowdMat);
+    head.position.set(Math.cos(a) * r, 2 + Math.random() * 2, Math.sin(a) * r);
+    scene.add(head);
+  }
   // Crowd lights
   const crowdColors = [0xFF8C3B, 0xFFE03B, 0xFF3B3B];
   for (let i = 0; i < 12; i++) {
@@ -406,9 +437,11 @@ function buildKartBlitzScene() {
   sun.castShadow = true;
   scene.add(sun);
 
-  // Track ground (grass)
+  // Track ground (grass with texture)
+  const grassTex = TEX.grassTexture();
+  grassTex.repeat.set(8, 8);
   const groundGeo = new THREE.PlaneGeometry(70, 70);
-  const groundMat = new THREE.MeshStandardMaterial({ color: 0x2a4a2a });
+  const groundMat = new THREE.MeshStandardMaterial({ map: grassTex, color: 0x3a6a3a });
   const ground = new THREE.Mesh(groundGeo, groundMat);
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
@@ -475,7 +508,9 @@ function buildKartBlitzScene() {
   }
   trackGeo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
   trackGeo.computeVertexNormals();
-  const trackMat = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.9 });
+  const roadTex = TEX.roadTexture();
+  roadTex.repeat.set(4, 1);
+  const trackMat = new THREE.MeshStandardMaterial({ map: roadTex, color: 0x666666, roughness: 0.9 });
   const trackMesh = new THREE.Mesh(trackGeo, trackMat);
   trackMesh.receiveShadow = true;
   scene.add(trackMesh);
@@ -499,6 +534,24 @@ function buildKartBlitzScene() {
     pl.position.set(Math.cos(a) * 25, 8, Math.sin(a) * 25);
     scene.add(pl);
   });
+
+  // Trees around the track
+  const treeTrunkMat = new THREE.MeshStandardMaterial({ color: 0x6b4226 });
+  const treeLeafMat = new THREE.MeshStandardMaterial({ color: 0x2d8a2d });
+  for (let i = 0; i < 16; i++) {
+    const angle = (i / 16) * Math.PI * 2 + Math.random() * 0.3;
+    const r = 28 + Math.random() * 5;
+    const x = Math.cos(angle) * r;
+    const z = Math.sin(angle) * r;
+    // Trunk
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.3, 2, 6), treeTrunkMat);
+    trunk.position.set(x, 1, z);
+    scene.add(trunk);
+    // Canopy
+    const canopy = new THREE.Mesh(new THREE.SphereGeometry(1.5 + Math.random(), 8, 6), treeLeafMat);
+    canopy.position.set(x, 3 + Math.random(), z);
+    scene.add(canopy);
+  }
 
   camera.position.set(0, 30, 30);
   camera.lookAt(0, 0, 0);
@@ -549,9 +602,10 @@ function buildDoodleDashScene() {
   sun.position.set(5, 20, 10);
   scene.add(sun);
 
-  // Canvas/whiteboard
+  // Canvas/whiteboard with paper texture
+  const wbTex = TEX.whiteboardTexture();
   const canvasGeo = new THREE.PlaneGeometry(20, 15);
-  const canvasMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+  const canvasMat = new THREE.MeshStandardMaterial({ map: wbTex, color: 0xffffff });
   const drawCanvas = new THREE.Mesh(canvasGeo, canvasMat);
   drawCanvas.position.set(0, 7.5, -2);
   scene.add(drawCanvas);
@@ -869,9 +923,10 @@ function updatePlayerMeshes(players: PlayerState[]) {
       mesh.rotation.y = player.data.angle as number;
     }
 
-    // Boost visual: pulsing emissive glow when boosting
+    // Boost visual: pulsing emissive glow + trail particles when boosting
     if (player.data?.boosting) {
       mat.emissiveIntensity = 0.8 + Math.sin(Date.now() * 0.02) * 0.3;
+      FX.boostTrailEffect(mesh.position.x, mesh.position.y, mesh.position.z);
     } else if (!player.data?.hasBomb) {
       mat.emissiveIntensity = 0.3;
     }
@@ -1485,15 +1540,41 @@ gws.onMessage((msg) => {
             switch (evt.event) {
               case 'elimination': {
                 const reason = (evt.data as any)?.reason;
-                if (reason === 'bomb') SFX.sfxExplosion();
-                else SFX.sfxElimination();
+                const pid = (evt.data as any)?.playerId;
+                const pmesh = pid ? playerMeshes.get(pid) : null;
+                const px = pmesh?.position.x ?? 0, py = pmesh?.position.y ?? 0, pz = pmesh?.position.z ?? 0;
+                if (reason === 'bomb') { SFX.sfxExplosion(); FX.explosionEffect(px, py, pz); }
+                else { SFX.sfxElimination(); FX.eliminationEffect(px, py, pz, 0xFF3B3B); }
                 break;
               }
-              case 'goal': SFX.sfxGoal(); break;
+              case 'goal': {
+                SFX.sfxGoal();
+                const team = (evt.data as any)?.team;
+                FX.goalEffect(team === 0 ? 10 : -10, 2, 0);
+                break;
+              }
               case 'bomb_pass': SFX.sfxBombPass(); break;
-              case 'ring_out': SFX.sfxRingOut(); break;
-              case 'platform_fall': SFX.sfxPlatformFall(); break;
-              case 'pickup': SFX.sfxTargetHit(); break;
+              case 'ring_out': {
+                SFX.sfxRingOut();
+                const pid2 = (evt.data as any)?.playerId;
+                const pmesh2 = pid2 ? playerMeshes.get(pid2) : null;
+                if (pmesh2) FX.ringOutEffect(pmesh2.position.x, 0.5, pmesh2.position.z, 0xFF8C3B);
+                break;
+              }
+              case 'platform_fall': {
+                SFX.sfxPlatformFall();
+                const platId = (evt.data as any)?.platformId;
+                const platMesh = platId ? entityMeshes.get(platId) : null;
+                if (platMesh) FX.platformCrumbleEffect(platMesh.position.x, 0, platMesh.position.z);
+                break;
+              }
+              case 'pickup': {
+                SFX.sfxTargetHit();
+                const tid = (evt.data as any)?.targetId;
+                const tmesh = tid ? entityMeshes.get(tid) : null;
+                if (tmesh) FX.hitSparkEffect(tmesh.position.x, 0.5, tmesh.position.z);
+                break;
+              }
               case 'lap_complete': SFX.sfxLapComplete(); break;
               case 'finish_line': SFX.sfxFinishLine(); break;
               case 'score_update': {
@@ -1539,6 +1620,9 @@ function animate() {
       camera.lookAt(0, 0, 0);
     }
   }
+
+  // Update particle effects
+  FX.updateParticles(delta);
 
   // Camera follow for obstacle-gauntlet
   if (currentScreen === 'game' && currentSceneType === 'obstacle-gauntlet' && latestState) {
