@@ -73,15 +73,10 @@ export class KartBlitz extends BaseGame {
 
     const joy = data.joystick as { x: number; y: number } | undefined;
     if (joy) {
-      // Steering
-      p.angle -= joy.x * TURN_SPEED * (1 / 60);
-      // Throttle (forward = y positive after inversion)
-      const throttle = Math.max(0, joy.y);
-      const brake = Math.max(0, -joy.y);
-      const maxSpd = p.boostTimer > 0 ? BOOST_SPEED : MAX_SPEED;
-      p.speed += throttle * ACCELERATION * (1 / 60);
-      p.speed -= brake * ACCELERATION * 1.5 * (1 / 60);
-      p.speed = Math.max(-3, Math.min(maxSpd, p.speed));
+      // Store input state - physics applied in update()
+      (p as any).steerX = joy.x;
+      (p as any).throttle = Math.max(0, joy.y);
+      (p as any).brake = Math.max(0, -joy.y);
     }
 
     const buttons = data.buttons as Record<string, boolean> | undefined;
@@ -96,6 +91,17 @@ export class KartBlitz extends BaseGame {
       if (p.finished) continue;
 
       if (p.boostTimer > 0) p.boostTimer -= dt;
+
+      // Apply steering and acceleration from stored input
+      const steerX = (p as any).steerX ?? 0;
+      const throttle = (p as any).throttle ?? 0;
+      const brake = (p as any).brake ?? 0;
+      const maxSpd = p.boostTimer > 0 ? BOOST_SPEED : MAX_SPEED;
+
+      p.angle -= steerX * TURN_SPEED * dt;
+      p.speed += throttle * ACCELERATION * dt;
+      p.speed -= brake * ACCELERATION * 1.5 * dt;
+      p.speed = Math.max(-3, Math.min(maxSpd, p.speed));
 
       // Move
       p.x += Math.sin(p.angle) * p.speed * dt;

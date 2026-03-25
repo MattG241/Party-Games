@@ -151,10 +151,17 @@ export class BullseyeBonanza extends BaseGame {
       }
     }
 
-    // Ensure minimum active targets
+    // Ensure minimum active targets - reuse inactive ones instead of growing array
     const activeCount = this.targets.filter(t => t.active).length;
     if (activeCount < 4) {
-      this.spawnTarget();
+      const inactive = this.targets.find(t => !t.active && t.respawnTimer <= 0);
+      if (inactive) {
+        inactive.active = true;
+        inactive.x = (Math.random() - 0.5) * ARENA_SIZE * 1.5;
+        inactive.z = (Math.random() - 0.5) * ARENA_SIZE * 1.5;
+      } else {
+        this.spawnTarget();
+      }
     }
   }
 

@@ -37,6 +37,8 @@ export class DoodleDash extends BaseGame {
   private roundPhase: 'drawing' | 'reveal' = 'drawing';
   private revealTimer = 0;
   private usedWords: Set<string> = new Set();
+  private answerChoices: string[] = [];
+  private correctAnswerIndex = 0;
 
   constructor(room: GameRoom) {
     super(room, 480);
@@ -69,6 +71,13 @@ export class DoodleDash extends BaseGame {
     this.roundTimer = this.roundDuration;
     this.currentWord = this.pickWord();
 
+    // Generate 4 answer choices (1 correct + 3 decoys)
+    const decoys = WORDS.filter(w => w !== this.currentWord)
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 3);
+    this.answerChoices = [this.currentWord, ...decoys].sort(() => Math.random() - 0.5);
+    this.correctAnswerIndex = this.answerChoices.indexOf(this.currentWord);
+
     // Rotate drawer
     const playerIds = [...this.dPlayers.keys()];
     this.drawerId = playerIds[this.internalRound % playerIds.length];
@@ -98,23 +107,37 @@ export class DoodleDash extends BaseGame {
     }
 
     const buttons = data.buttons as Record<string, boolean> | undefined;
-    if (!p.isDrawer && this.roundPhase === 'drawing') {
-      // Guessers use buttons a/b/x/y mapped to guess options
-      if (buttons?.a && !p.hasGuessed) {
+    if (!p.isDrawer && this.roundPhase === 'drawing' && buttons && !p.hasGuessed) {
+      // Guessers use buttons a/b/x/y mapped to answer choices
+      const mapping: Record<string, number> = { a: 0, b: 1, x: 2, y: 3 };
+      for (const [key, idx] of Object.entries(mapping)) {
+        if (!buttons[key]) continue;
         p.hasGuessed = true;
-        // Time-based scoring: faster guess = more points
-        const timeBonus = Math.ceil((this.roundTimer / this.roundDuration) * 5);
-        p.points += 3 + timeBonus;
-        // Drawer also gets points
-        const drawer = this.dPlayers.get(this.drawerId);
-        if (drawer) drawer.points += 2;
-        this.emitEvent({
-          type: 'event',
-          event: 'score_update',
-          data: { playerId: p.id, points: 3 + timeBonus, word: this.currentWord },
-          affectedPlayers: [p.id],
-          timestamp: Date.now(),
-        });
+        if (idx === this.correctAnswerIndex) {
+          // Correct guess - time-based scoring: faster = more points
+          const timeBonus = Math.ceil((this.roundTimer / this.roundDuration) * 5);
+          p.points += 3 + timeBonus;
+          // Drawer also gets points when someone guesses correctly
+          const drawer = this.dPlayers.get(this.drawerId);
+          if (drawer) drawer.points += 2;
+          this.emitEvent({
+            type: 'event',
+            event: 'score_update',
+            data: { playerId: p.id, points: 3 + timeBonus, word: this.currentWord, correct: true },
+            affectedPlayers: [p.id],
+            timestamp: Date.now(),
+          });
+        } else {
+          // Wrong guess
+          this.emitEvent({
+            type: 'event',
+            event: 'score_update',
+            data: { playerId: p.id, points: 0, word: this.currentWord, correct: false },
+            affectedPlayers: [p.id],
+            timestamp: Date.now(),
+          });
+        }
+        break;
       }
     }
   }
@@ -153,7 +176,7 @@ export class DoodleDash extends BaseGame {
         type: 'drawing',
         position: { x: 0, y: 0, z: 0 },
         data: {
-          strokes: drawer.currentDrawing.slice(-100), // last 100 points
+          strokes: drawer.currentDrawing.slice(-500),
           drawerId: this.drawerId,
         },
       });
@@ -177,7 +200,9 @@ export class DoodleDash extends BaseGame {
           points: dp?.points ?? 0,
           isDrawer: dp?.isDrawer ?? false,
           hasGuessed: dp?.hasGuessed ?? false,
-          word: dp?.isDrawer ? this.currentWord : (this.roundPhase === 'reveal' ? this.currentWord : this.currentWord.replace(/[a-z]/g, '_')),
+          word: dp?.isDrawer ? this.currentWord : (this.roundPhase === 'reveal' ? this.currentWord : this.currentWord.replace(/[a-zA-Z]/g, '_')),
+          answerChoices: dp?.isDrawer ? [] : this.answerChoices,
+          correctAnswerIndex: this.roundPhase === 'reveal' ? this.correctAnswerIndex : -1,
           roundPhase: this.roundPhase,
           internalRound: this.internalRound,
           totalInternalRounds: this.totalInternalRounds,

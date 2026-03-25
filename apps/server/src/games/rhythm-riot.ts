@@ -20,6 +20,7 @@ interface RhythmPlayer {
   maxCombo: number;
   perfect: number;
   good: number;
+  ok: number;
   miss: number;
   lastHitQuality: string | null; // 'perfect' | 'good' | 'miss'
   hitNotes: Set<string>; // note IDs this player has hit
@@ -45,6 +46,7 @@ export class RhythmRiot extends BaseGame {
         maxCombo: 0,
         perfect: 0,
         good: 0,
+        ok: 0,
         miss: 0,
         lastHitQuality: null,
         hitNotes: new Set(),
@@ -111,6 +113,7 @@ export class RhythmRiot extends BaseGame {
 
       if (bestNote) {
         p.hitNotes.add(bestNote.id);
+        bestNote.hit = true;
         if (bestDist < 0.08) {
           p.points += 3;
           p.combo++;
@@ -124,7 +127,7 @@ export class RhythmRiot extends BaseGame {
         } else {
           p.points += 1;
           p.combo++;
-          p.good++;
+          p.ok++;
           p.lastHitQuality = 'ok';
         }
         if (p.combo > 0 && p.combo % 10 === 0) {
@@ -143,8 +146,16 @@ export class RhythmRiot extends BaseGame {
 
     // Mark notes as missed after timing window passes
     for (const note of this.notes) {
-      if (!note.missed && this.elapsedTime - note.hitTime > 0.5) {
+      if (!note.missed && !note.hit && this.elapsedTime - note.hitTime > 0.5) {
         note.missed = true;
+        // Increment miss counter and break combo for all players who didn't hit this note
+        for (const p of this.rPlayers.values()) {
+          if (!p.hitNotes.has(note.id)) {
+            p.miss++;
+            p.combo = 0;
+            p.lastHitQuality = 'miss';
+          }
+        }
       }
     }
   }
@@ -180,6 +191,7 @@ export class RhythmRiot extends BaseGame {
           maxCombo: rp2?.maxCombo ?? 0,
           perfect: rp2?.perfect ?? 0,
           good: rp2?.good ?? 0,
+          ok: rp2?.ok ?? 0,
           miss: rp2?.miss ?? 0,
           lastHitQuality: rp2?.lastHitQuality,
           elapsedTime: this.elapsedTime,

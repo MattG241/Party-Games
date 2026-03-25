@@ -86,11 +86,13 @@ export class ArenaBall extends BaseGame {
 
     if (this.ball.x < -this.FIELD_W / 2 && Math.abs(this.ball.z) < this.GOAL_W) {
       this.teamScores[1]++;
-      this.emitEvent({ type: 'event', event: 'goal', data: { team: 1, score: this.teamScores }, affectedPlayers: [], timestamp: Date.now() });
+      const scorers = [...this.arenaPlayers.values()].filter(ap => ap.team === 1).map(ap => ap.id);
+      this.emitEvent({ type: 'event', event: 'goal', data: { team: 1, score: this.teamScores }, affectedPlayers: scorers, timestamp: Date.now() });
       this.resetBall();
     } else if (this.ball.x > this.FIELD_W / 2 && Math.abs(this.ball.z) < this.GOAL_W) {
       this.teamScores[0]++;
-      this.emitEvent({ type: 'event', event: 'goal', data: { team: 0, score: this.teamScores }, affectedPlayers: [], timestamp: Date.now() });
+      const scorers = [...this.arenaPlayers.values()].filter(ap => ap.team === 0).map(ap => ap.id);
+      this.emitEvent({ type: 'event', event: 'goal', data: { team: 0, score: this.teamScores }, affectedPlayers: scorers, timestamp: Date.now() });
       this.resetBall();
     } else if (Math.abs(this.ball.x) > this.FIELD_W / 2) {
       this.ball.vx *= -0.8;

@@ -122,6 +122,14 @@ export class PlatformPanic extends BaseGame {
       }
     }
 
+    // Assign finish positions to surviving players when game is nearly over
+    const aliveNow = [...this.panicPlayers.values()].filter(p => !p.eliminated);
+    if (aliveNow.length <= 1 && this.eliminationOrder.length > 0) {
+      for (const p of aliveNow) {
+        if (p.finishPosition === 0) p.finishPosition = 1;
+      }
+    }
+
     for (const plat of this.platforms) {
       if (!plat.crumbling) continue;
       plat.crumbleTimer -= dt;

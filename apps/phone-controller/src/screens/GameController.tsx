@@ -163,8 +163,11 @@ function renderButtons(
 
     case 'doodle-dash':
       return (
-        <div style={btnStyles.grid1}>
-          <ActionButton label="GUESS" color="#3BFF6A" size="large" onPress={() => pressButton('a')} emoji="✅" />
+        <div style={btnStyles.grid2}>
+          <ActionButton label="A" color="#3BFF6A" size="medium" onPress={() => pressButton('a')} />
+          <ActionButton label="B" color="#FF3B3B" size="medium" onPress={() => pressButton('b')} />
+          <ActionButton label="X" color="#3B8BFF" size="medium" onPress={() => pressButton('x')} />
+          <ActionButton label="Y" color="#FFE03B" size="medium" onPress={() => pressButton('y')} />
         </div>
       );
 

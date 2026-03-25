@@ -100,8 +100,11 @@ export class SumoSmash extends BaseGame {
           const nx = dx / dist;
           const nz = dz / dist;
           const force = p.isCharging ? 20 : 5;
+          const reactionForce = other.isCharging ? 20 : 5;
           other.vx += nx * force;
           other.vz += nz * force;
+          p.vx -= nx * reactionForce;
+          p.vz -= nz * reactionForce;
           // Separate
           const overlap = PLAYER_RADIUS * 2 - dist;
           other.x += nx * overlap * 0.5;
