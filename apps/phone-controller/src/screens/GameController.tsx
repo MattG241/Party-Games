@@ -132,12 +132,31 @@ function renderButtons(
   myPlayer?: PlayerState,
 ): React.ReactNode {
   switch (gameId) {
-    case 'arena-ball':
+    case 'arena-ball': {
+      const dashCd = (myPlayer?.data?.dashCooldown as number) ?? 0;
+      const canDash = dashCd <= 0;
+      const teamScores = (myPlayer?.data?.teamScores as number[]) ?? [0, 0];
+      const myTeam = (myPlayer?.data?.team as number) ?? 0;
       return (
-        <div style={btnStyles.grid1}>
-          <ActionButton label="DASH" color={hex} size="large" onPress={() => pressButton('dash')} />
+        <div style={{ ...btnStyles.grid1, flexDirection: 'column', gap: '12px' }}>
+          <div style={{ fontSize: 20, fontWeight: 900, textAlign: 'center' }}>
+            <span style={{ color: myTeam === 0 ? hex : '#888' }}>{teamScores[0]}</span>
+            <span style={{ opacity: 0.4 }}> - </span>
+            <span style={{ color: myTeam === 1 ? hex : '#888' }}>{teamScores[1]}</span>
+          </div>
+          <ActionButton
+            label={canDash ? 'DASH' : `${dashCd.toFixed(1)}s`}
+            color={canDash ? hex : '#555555'}
+            size="large"
+            onPress={() => pressButton('dash')}
+            emoji={canDash ? '💨' : '⏳'}
+          />
+          <div style={{ fontSize: 12, opacity: 0.5 }}>
+            Team {myTeam === 0 ? 'Blue' : 'Red'}
+          </div>
         </div>
       );
+    }
 
     case 'bomb-tag': {
       const hasBomb = myPlayer?.data?.hasBomb ?? false;

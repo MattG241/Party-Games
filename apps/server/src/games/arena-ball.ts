@@ -15,15 +15,26 @@ interface ArenaPlayer {
   vx: number;
   vz: number;
   dashCooldown: number;
+  dashTimer: number; // remaining dash burst time
+  lastKickTime: number; // prevent rapid re-kicks
 }
+
+const FIELD_W = 20;
+const FIELD_H = 12;
+const GOAL_W = 3.5;
+const MOVE_SPEED = 7;
+const DASH_SPEED = 16;
+const DASH_DURATION = 0.25;
+const DASH_COOLDOWN = 2.5;
+const PLAYER_RADIUS = 0.6;
+const BALL_RADIUS = 0.6;
+const BALL_KICK_FORCE = 14;
+const BALL_FRICTION = 0.97; // per-frame at 60fps baseline
 
 export class ArenaBall extends BaseGame {
   private ball: Ball = { x: 0, y: 0.5, z: 0, vx: 0, vy: 0, vz: 0 };
   private arenaPlayers: Map<string, ArenaPlayer> = new Map();
   private teamScores: [number, number] = [0, 0];
-  private FIELD_W = 20;
-  private FIELD_H = 12;
-  private GOAL_W = 3;
 
   constructor(room: GameRoom) {
     super(room, 180);
@@ -33,11 +44,12 @@ export class ArenaBall extends BaseGame {
       this.arenaPlayers.set(id, {
         id,
         team,
-        x: team === 0 ? -6 : 6,
-        z: (i < 2 ? -2 : 2) * (Math.floor(i / 2) + 1),
+        ...this.getSpawnPos(team, i),
         vx: 0,
         vz: 0,
         dashCooldown: 0,
+        dashTimer: 0,
+        lastKickTime: 0,
       });
       i++;
     }
@@ -45,63 +57,138 @@ export class ArenaBall extends BaseGame {
 
   get gameId(): GameId { return 'arena-ball'; }
 
+  private getSpawnPos(team: 0 | 1, index: number): { x: number; z: number } {
+    // Stagger players on their half of the field
+    const teamIdx = Math.floor(index / 2);
+    const zPositions = [-3, 3, 0, -1.5, 1.5];
+    const z = zPositions[teamIdx % zPositions.length] ?? 0;
+    const x = team === 0 ? -5 - (teamIdx % 2) * 2 : 5 + (teamIdx % 2) * 2;
+    return { x, z };
+  }
+
+  private resetPositions(): void {
+    let i = 0;
+    for (const p of this.arenaPlayers.values()) {
+      const pos = this.getSpawnPos(p.team, i);
+      p.x = pos.x;
+      p.z = pos.z;
+      p.vx = 0;
+      p.vz = 0;
+      p.dashTimer = 0;
+      i++;
+    }
+  }
+
   handleInput(playerId: string, data: Record<string, unknown>): void {
     const p = this.arenaPlayers.get(playerId);
     if (!p) return;
     const joy = data.joystick as { x: number; y: number } | undefined;
-    if (joy) { p.vx = joy.x * 7; p.vz = joy.y * 7; }
+    if (joy && p.dashTimer <= 0) {
+      p.vx = joy.x * MOVE_SPEED;
+      p.vz = joy.y * MOVE_SPEED;
+    }
     const buttons = data.buttons as Record<string, boolean> | undefined;
     if (buttons?.dash && p.dashCooldown <= 0) {
       const mag = Math.sqrt(p.vx * p.vx + p.vz * p.vz) || 1;
-      p.vx = (p.vx / mag) * 15;
-      p.vz = (p.vz / mag) * 15;
-      p.dashCooldown = 3;
+      p.vx = (p.vx / mag) * DASH_SPEED;
+      p.vz = (p.vz / mag) * DASH_SPEED;
+      p.dashCooldown = DASH_COOLDOWN;
+      p.dashTimer = DASH_DURATION;
     }
   }
 
   update(dt: number): void {
-    for (const p of this.arenaPlayers.values()) {
-      p.x = Math.max(-this.FIELD_W / 2, Math.min(this.FIELD_W / 2, p.x + p.vx * dt));
-      p.z = Math.max(-this.FIELD_H / 2, Math.min(this.FIELD_H / 2, p.z + p.vz * dt));
-      if (p.dashCooldown > 0) p.dashCooldown -= dt;
+    const now = Date.now() / 1000;
 
+    for (const p of this.arenaPlayers.values()) {
+      if (p.dashCooldown > 0) p.dashCooldown -= dt;
+      if (p.dashTimer > 0) p.dashTimer -= dt;
+
+      p.x += p.vx * dt;
+      p.z += p.vz * dt;
+
+      // Field bounds
+      p.x = Math.max(-FIELD_W / 2, Math.min(FIELD_W / 2, p.x));
+      p.z = Math.max(-FIELD_H / 2, Math.min(FIELD_H / 2, p.z));
+
+      // Ball kick — only if not recently kicked (prevent per-frame spam)
       const dx = this.ball.x - p.x;
       const dz = this.ball.z - p.z;
-      if (dx * dx + dz * dz < 1.2) {
-        const mag = Math.sqrt(dx * dx + dz * dz) || 1;
-        this.ball.vx = (dx / mag) * 12 + p.vx * 0.5;
-        this.ball.vz = (dz / mag) * 12 + p.vz * 0.5;
+      const distSq = dx * dx + dz * dz;
+      const kickDist = PLAYER_RADIUS + BALL_RADIUS;
+      if (distSq < kickDist * kickDist && now - p.lastKickTime > 0.15) {
+        const dist = Math.sqrt(distSq) || 0.1;
+        const nx = dx / dist;
+        const nz = dz / dist;
+        const pSpeed = Math.sqrt(p.vx * p.vx + p.vz * p.vz);
+        const kickPower = BALL_KICK_FORCE + pSpeed * 0.4;
+        this.ball.vx = nx * kickPower;
+        this.ball.vz = nz * kickPower;
+        // Push ball out of player
+        this.ball.x = p.x + nx * (kickDist + 0.1);
+        this.ball.z = p.z + nz * (kickDist + 0.1);
+        p.lastKickTime = now;
       }
     }
 
-    this.ball.x += this.ball.vx * dt;
-    this.ball.z += this.ball.vz * dt;
-    this.ball.vx *= 0.98;
-    this.ball.vz *= 0.98;
-
-    if (Math.abs(this.ball.z) > this.FIELD_H / 2) {
-      this.ball.vz *= -0.8;
-      this.ball.z = Math.sign(this.ball.z) * this.FIELD_H / 2;
+    // Player-player collisions
+    const players = [...this.arenaPlayers.values()];
+    for (let i = 0; i < players.length; i++) {
+      for (let j = i + 1; j < players.length; j++) {
+        const a = players[i], b = players[j];
+        const dx = b.x - a.x;
+        const dz = b.z - a.z;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist < PLAYER_RADIUS * 2 && dist > 0) {
+          const nx = dx / dist;
+          const nz = dz / dist;
+          const overlap = PLAYER_RADIUS * 2 - dist;
+          a.x -= nx * overlap * 0.5;
+          a.z -= nz * overlap * 0.5;
+          b.x += nx * overlap * 0.5;
+          b.z += nz * overlap * 0.5;
+          a.vx -= nx * 2;
+          a.vz -= nz * 2;
+          b.vx += nx * 2;
+          b.vz += nz * 2;
+        }
+      }
     }
 
-    if (this.ball.x < -this.FIELD_W / 2 && Math.abs(this.ball.z) < this.GOAL_W) {
+    // Ball physics
+    this.ball.x += this.ball.vx * dt;
+    this.ball.z += this.ball.vz * dt;
+    this.ball.vx *= Math.pow(BALL_FRICTION, dt * 60);
+    this.ball.vz *= Math.pow(BALL_FRICTION, dt * 60);
+
+    // Wall bounces (top/bottom)
+    if (Math.abs(this.ball.z) > FIELD_H / 2) {
+      this.ball.vz *= -0.8;
+      this.ball.z = Math.sign(this.ball.z) * FIELD_H / 2;
+    }
+
+    // Goal detection
+    if (this.ball.x < -FIELD_W / 2 && Math.abs(this.ball.z) < GOAL_W) {
       this.teamScores[1]++;
       const scorers = [...this.arenaPlayers.values()].filter(ap => ap.team === 1).map(ap => ap.id);
-      this.emitEvent({ type: 'event', event: 'goal', data: { team: 1, score: this.teamScores }, affectedPlayers: scorers, timestamp: Date.now() });
+      this.emitEvent({ type: 'event', event: 'goal', data: { team: 1, score: [...this.teamScores] }, affectedPlayers: scorers, timestamp: Date.now() });
       this.resetBall();
-    } else if (this.ball.x > this.FIELD_W / 2 && Math.abs(this.ball.z) < this.GOAL_W) {
+      this.resetPositions();
+    } else if (this.ball.x > FIELD_W / 2 && Math.abs(this.ball.z) < GOAL_W) {
       this.teamScores[0]++;
       const scorers = [...this.arenaPlayers.values()].filter(ap => ap.team === 0).map(ap => ap.id);
-      this.emitEvent({ type: 'event', event: 'goal', data: { team: 0, score: this.teamScores }, affectedPlayers: scorers, timestamp: Date.now() });
+      this.emitEvent({ type: 'event', event: 'goal', data: { team: 0, score: [...this.teamScores] }, affectedPlayers: scorers, timestamp: Date.now() });
       this.resetBall();
-    } else if (Math.abs(this.ball.x) > this.FIELD_W / 2) {
+      this.resetPositions();
+    } else if (Math.abs(this.ball.x) > FIELD_W / 2) {
+      // Wall bounce (behind goal but outside goal area)
       this.ball.vx *= -0.8;
-      this.ball.x = Math.sign(this.ball.x) * this.FIELD_W / 2;
+      this.ball.x = Math.sign(this.ball.x) * FIELD_W / 2;
     }
   }
 
   private resetBall(): void {
-    this.ball = { x: 0, y: 0.5, z: 0, vx: (Math.random() - 0.5) * 4, vy: 0, vz: (Math.random() - 0.5) * 4 };
+    this.ball = { x: 0, y: 0.5, z: 0, vx: (Math.random() - 0.5) * 3, vy: 0, vz: (Math.random() - 0.5) * 3 };
   }
 
   getEntities(): EntityState[] {
@@ -124,7 +211,12 @@ export class ArenaBall extends BaseGame {
         connected: rp.connected,
         isHost: rp.isHost,
         position: ap ? { x: ap.x, y: 0, z: ap.z } : { x: 0, y: 0, z: 0 },
-        data: { team: ap?.team ?? 0, teamScores: this.teamScores },
+        data: {
+          team: ap?.team ?? 0,
+          teamScores: [...this.teamScores],
+          dashCooldown: Math.max(0, ap?.dashCooldown ?? 0),
+          isDashing: (ap?.dashTimer ?? 0) > 0,
+        },
       };
     });
   }

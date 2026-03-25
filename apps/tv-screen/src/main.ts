@@ -292,19 +292,24 @@ function buildArenaBallScene() {
   );
   scene.add(centerLine);
 
-  // Goals
+  // Goals (GOAL_W = 3.5)
   const goalMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
   [{ x: -11 }, { x: 11 }].forEach(({ x }) => {
-    const post1 = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 4), goalMat);
-    post1.position.set(x, 2, -3);
+    const post1 = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 4), goalMat);
+    post1.position.set(x, 2, -3.5);
     scene.add(post1);
-    const post2 = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 4), goalMat);
-    post2.position.set(x, 2, 3);
+    const post2 = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 4), goalMat);
+    post2.position.set(x, 2, 3.5);
     scene.add(post2);
-    const crossbar = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 6), goalMat);
+    const crossbar = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 7), goalMat);
     crossbar.rotation.x = Math.PI / 2;
     crossbar.position.set(x, 4, 0);
     scene.add(crossbar);
+    // Goal net (translucent box)
+    const netMat = new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.08 });
+    const net = new THREE.Mesh(new THREE.BoxGeometry(1.5, 4, 7), netMat);
+    net.position.set(x + (x < 0 ? -0.75 : 0.75), 2, 0);
+    scene.add(net);
   });
 
   // Walls
@@ -1014,9 +1019,16 @@ function updateHUD(state: GameState) {
   // Round
   roundEl.textContent = `ROUND ${state.round + 1}/${state.totalRounds}`;
 
-  // Game title
+  // Game title — show team scores for arena-ball
   if (state.gameId) {
-    gameTitleEl.textContent = (GAME_NAMES[state.gameId] ?? state.gameId).toUpperCase();
+    if (state.gameId === 'arena-ball' && state.players.length > 0) {
+      const ts = state.players[0]?.data?.teamScores as number[] | undefined;
+      if (ts) {
+        gameTitleEl.innerHTML = `<span style="color:#3B8BFF">${ts[0]}</span> ⚽ <span style="color:#FF3B3B">${ts[1]}</span>`;
+      }
+    } else {
+      gameTitleEl.textContent = (GAME_NAMES[state.gameId] ?? state.gameId).toUpperCase();
+    }
   }
 
   // Score bar - sort by race position for kart-blitz, by score otherwise
