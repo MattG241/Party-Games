@@ -366,12 +366,42 @@ function renderButtons(
       );
     }
 
-    case 'obstacle-gauntlet':
+    case 'obstacle-gauntlet': {
+      const jumpCd = (myPlayer?.data?.jumpCooldown as number) ?? 0;
+      const canJump = jumpCd <= 0;
+      const progress = (myPlayer?.data?.progress as number) ?? 0;
+      const stunned = myPlayer?.data?.stunned ?? false;
+      const finished = myPlayer?.data?.finished ?? false;
       return (
-        <div style={btnStyles.grid1}>
-          <ActionButton label="JUMP" color={hex} size="large" onPress={() => pressButton('jump')} emoji="🦘" />
+        <div style={{ ...btnStyles.grid1, flexDirection: 'column', gap: '10px' }}>
+          {/* Progress bar */}
+          <div style={{ width: '80%', maxWidth: 200 }}>
+            <div style={{ fontSize: 11, opacity: 0.5, marginBottom: 4, textAlign: 'center' }}>
+              {finished ? 'FINISHED!' : `${Math.floor(progress)}%`}
+            </div>
+            <div style={{ height: 6, background: 'rgba(255,255,255,0.1)', borderRadius: 3, overflow: 'hidden' }}>
+              <div style={{
+                width: `${Math.min(100, progress)}%`,
+                height: '100%',
+                background: finished ? '#3BFF6A' : '#C03BFF',
+                borderRadius: 3,
+                transition: 'width 0.2s',
+              }} />
+            </div>
+          </div>
+          {stunned && (
+            <div style={{ fontSize: 14, color: '#FF3B3B', fontWeight: 700 }}>STUNNED!</div>
+          )}
+          <ActionButton
+            label={canJump ? 'JUMP' : `${jumpCd.toFixed(1)}s`}
+            color={canJump ? hex : '#555555'}
+            size="large"
+            onPress={() => pressButton('jump')}
+            emoji={canJump ? '🦘' : '⏳'}
+          />
         </div>
       );
+    }
 
     case 'trivia-royale':
       return (

@@ -9,7 +9,7 @@ interface Obstacle {
   x: number;
   z: number;
   width: number;
-  phase: number; // animation phase
+  phase: number;
   speed: number;
 }
 
@@ -22,11 +22,19 @@ interface GauntletPlayer {
   eliminated: boolean;
   finishPosition: number;
   jumpTimer: number;
+  jumpCooldown: number;
   isJumping: boolean;
+  stunTimer: number;
 }
 
 const TRACK_LENGTH = 100;
 const TRACK_WIDTH = 12;
+const MOVE_SPEED_X = 8;
+const MOVE_SPEED_Z = 10;
+const BASE_FORWARD = 2;
+const PLAYER_RADIUS = 0.5;
+const JUMP_DURATION = 0.5;
+const JUMP_COOLDOWN = 0.8;
 
 export class ObstacleGauntlet extends BaseGame {
   private gPlayers: Map<string, GauntletPlayer> = new Map();
@@ -46,7 +54,9 @@ export class ObstacleGauntlet extends BaseGame {
         eliminated: false,
         finishPosition: 0,
         jumpTimer: 0,
+        jumpCooldown: 0,
         isJumping: false,
+        stunTimer: 0,
       });
       i++;
     }
@@ -57,7 +67,6 @@ export class ObstacleGauntlet extends BaseGame {
 
   private generateObstacles(): void {
     let id = 0;
-    // Place obstacles along the track
     for (let z = 10; z < TRACK_LENGTH - 5; z += 6) {
       const type = (['wall', 'spinner', 'crusher', 'gap'] as const)[Math.floor(Math.random() * 4)];
       this.obstacles.push({
@@ -77,15 +86,19 @@ export class ObstacleGauntlet extends BaseGame {
     if (!p || p.eliminated || p.finishPosition > 0) return;
 
     const joy = data.joystick as { x: number; y: number } | undefined;
-    if (joy) {
-      p.vx = joy.x * 8;
-      p.vz = Math.max(0, joy.y) * 10 + 3; // Always move forward somewhat
+    if (joy && p.stunTimer <= 0) {
+      p.vx = joy.x * MOVE_SPEED_X;
+      // Phone Y is inverted: pushing up = negative Y = run forward (+Z)
+      const forwardInput = Math.max(0, -joy.y);
+      const backInput = Math.max(0, joy.y);
+      p.vz = BASE_FORWARD + forwardInput * MOVE_SPEED_Z - backInput * 3;
     }
 
     const buttons = data.buttons as Record<string, boolean> | undefined;
-    if (buttons?.jump && p.jumpTimer <= 0) {
+    if (buttons?.jump && p.jumpCooldown <= 0 && !p.isJumping && p.stunTimer <= 0) {
       p.isJumping = true;
-      p.jumpTimer = 0.6;
+      p.jumpTimer = JUMP_DURATION;
+      p.jumpCooldown = JUMP_COOLDOWN;
     }
   }
 
@@ -95,6 +108,20 @@ export class ObstacleGauntlet extends BaseGame {
     for (const p of this.gPlayers.values()) {
       if (p.eliminated || p.finishPosition > 0) continue;
 
+      // Stun countdown
+      if (p.stunTimer > 0) {
+        p.stunTimer -= dt;
+        p.vz = 0;
+        p.vx = 0;
+      }
+
+      // Jump timer
+      if (p.jumpTimer > 0) {
+        p.jumpTimer -= dt;
+        if (p.jumpTimer <= 0) p.isJumping = false;
+      }
+      if (p.jumpCooldown > 0) p.jumpCooldown -= dt;
+
       p.x += p.vx * dt;
       p.z += p.vz * dt;
 
@@ -102,13 +129,7 @@ export class ObstacleGauntlet extends BaseGame {
       p.x = Math.max(-TRACK_WIDTH / 2, Math.min(TRACK_WIDTH / 2, p.x));
       p.z = Math.max(0, p.z);
 
-      // Jump timer
-      if (p.jumpTimer > 0) {
-        p.jumpTimer -= dt;
-        if (p.jumpTimer <= 0) p.isJumping = false;
-      }
-
-      // Check obstacles
+      // Check obstacles (jumping skips obstacle collision)
       if (!p.isJumping) {
         for (const obs of this.obstacles) {
           const dz = Math.abs(p.z - obs.z);
@@ -119,9 +140,9 @@ export class ObstacleGauntlet extends BaseGame {
             case 'wall': {
               const dx = Math.abs(p.x - obs.x);
               if (dx < obs.width / 2 && dz < 0.8) {
-                // Push back
-                p.z -= 2;
-                p.vz = 0;
+                // Push back smoothly
+                p.vz = -2;
+                p.stunTimer = 0.3;
               }
               break;
             }
@@ -147,9 +168,9 @@ export class ObstacleGauntlet extends BaseGame {
               const gapCenter = obs.x + Math.sin(elapsed * obs.speed * 0.5 + obs.phase) * 3;
               const dx = Math.abs(p.x - gapCenter);
               if (dz < 0.8 && dx > obs.width / 2) {
-                // Hit the wall part (not the gap)
-                p.z -= 2;
-                p.vz = 0;
+                // Hit wall part — push back and stun
+                p.vz = -2;
+                p.stunTimer = 0.3;
               }
               break;
             }
@@ -183,6 +204,24 @@ export class ObstacleGauntlet extends BaseGame {
         });
       }
     }
+
+    // Player-player collisions
+    const active = [...this.gPlayers.values()].filter(p => !p.eliminated && p.finishPosition === 0);
+    for (let i = 0; i < active.length; i++) {
+      for (let j = i + 1; j < active.length; j++) {
+        const a = active[i], b = active[j];
+        const dx = b.x - a.x;
+        const dz = b.z - a.z;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist < PLAYER_RADIUS * 2 && dist > 0) {
+          const nx = dx / dist;
+          const nz = dz / dist;
+          const overlap = PLAYER_RADIUS * 2 - dist;
+          a.x -= nx * overlap * 0.5;
+          b.x += nx * overlap * 0.5;
+        }
+      }
+    }
   }
 
   getEntities(): EntityState[] {
@@ -209,6 +248,12 @@ export class ObstacleGauntlet extends BaseGame {
   }
 
   getPlayerStates(): PlayerState[] {
+    // Find the average Z of alive players for camera tracking
+    const alivePlayers = [...this.gPlayers.values()].filter(p => !p.eliminated && p.finishPosition === 0);
+    const avgZ = alivePlayers.length > 0
+      ? alivePlayers.reduce((sum, p) => sum + p.z, 0) / alivePlayers.length
+      : 0;
+
     return [...this.room.players.values()].map(rp => {
       const gp = this.gPlayers.get(rp.id);
       return {
@@ -221,18 +266,23 @@ export class ObstacleGauntlet extends BaseGame {
         position: gp ? { x: gp.x, y: gp.isJumping ? 2 : 0, z: gp.z } : { x: 0, y: 0, z: 0 },
         eliminated: gp?.eliminated ?? false,
         finishPosition: gp?.finishPosition ?? 0,
-        data: { isJumping: gp?.isJumping ?? false, progress: ((gp?.z ?? 0) / TRACK_LENGTH) * 100 },
+        data: {
+          isJumping: gp?.isJumping ?? false,
+          progress: ((gp?.z ?? 0) / TRACK_LENGTH) * 100,
+          jumpCooldown: Math.max(0, gp?.jumpCooldown ?? 0),
+          stunned: (gp?.stunTimer ?? 0) > 0,
+          finished: (gp?.finishPosition ?? 0) > 0,
+          avgZ,
+        },
       };
     });
   }
 
   getFinalScores(): Record<string, number> {
     const scores: Record<string, number> = {};
-    // Finished players get top scores
     this.finishOrder.forEach((id, i) => {
       scores[id] = SCORE_TABLE[i + 1] ?? 3;
     });
-    // Remaining scored by progress
     const remaining = [...this.gPlayers.values()]
       .filter(p => p.finishPosition === 0)
       .sort((a, b) => {

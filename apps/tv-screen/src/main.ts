@@ -559,7 +559,7 @@ function buildDoodleDashScene() {
 
 function buildObstacleGauntletScene() {
   scene.background = new THREE.Color(0x1a0a2a);
-  scene.fog = new THREE.Fog(0x1a0a2a, 20, 80);
+  scene.fog = new THREE.Fog(0x1a0a2a, 30, 100);
 
   scene.add(new THREE.AmbientLight(0x442266, 2));
   const sun = new THREE.DirectionalLight(0xffffff, 3);
@@ -567,34 +567,40 @@ function buildObstacleGauntletScene() {
   sun.castShadow = true;
   scene.add(sun);
 
-  // Track floor
-  const trackGeo = new THREE.PlaneGeometry(14, 60);
+  // Track floor (full 110 units to cover track + start/finish)
+  const trackGeo = new THREE.PlaneGeometry(14, 110);
   const trackMat = new THREE.MeshStandardMaterial({ color: 0x2a2a4a });
   const trackFloor = new THREE.Mesh(trackGeo, trackMat);
   trackFloor.rotation.x = -Math.PI / 2;
+  trackFloor.position.z = 50;
   trackFloor.receiveShadow = true;
   scene.add(trackFloor);
 
-  // Side walls
+  // Side walls (full length)
   const wallMat = new THREE.MeshStandardMaterial({ color: 0xC03BFF, emissive: 0x6600aa, emissiveIntensity: 0.3, transparent: true, opacity: 0.4 });
-  const leftWall = new THREE.Mesh(new THREE.BoxGeometry(0.3, 3, 60), wallMat);
-  leftWall.position.set(-7, 1.5, 0);
+  const leftWall = new THREE.Mesh(new THREE.BoxGeometry(0.3, 3, 110), wallMat);
+  leftWall.position.set(-7, 1.5, 50);
   scene.add(leftWall);
   const rightWall = leftWall.clone();
   rightWall.position.x = 7;
   scene.add(rightWall);
 
-  // Neon lane markers
+  // Neon lane markers (full length)
   const laneMat = new THREE.LineBasicMaterial({ color: 0xC03BFF, transparent: true, opacity: 0.3 });
   for (const x of [-7, 7]) {
-    const pts = [new THREE.Vector3(x, 0.01, -30), new THREE.Vector3(x, 0.01, 30)];
+    const pts = [new THREE.Vector3(x, 0.01, -5), new THREE.Vector3(x, 0.01, 105)];
     scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), laneMat));
   }
 
+  // Finish line
+  const finishMat = new THREE.LineBasicMaterial({ color: 0x3BFF6A });
+  const finishPts = [new THREE.Vector3(-7, 0.02, 100), new THREE.Vector3(7, 0.02, 100)];
+  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(finishPts), finishMat));
+
   // Spotlights along track
-  for (let i = 0; i < 6; i++) {
-    const pl = new THREE.PointLight(i % 2 === 0 ? 0xFF3BB0 : 0x3BFFF0, 3, 15);
-    pl.position.set(i % 2 === 0 ? -6 : 6, 4, -25 + i * 10);
+  for (let i = 0; i < 10; i++) {
+    const pl = new THREE.PointLight(i % 2 === 0 ? 0xFF3BB0 : 0x3BFFF0, 3, 20);
+    pl.position.set(i % 2 === 0 ? -8 : 8, 4, i * 10);
     scene.add(pl);
   }
 
@@ -1413,7 +1419,15 @@ function animate() {
     }
   }
 
-  // Vote screen timer bar live update is done via setInterval
+  // Camera follow for obstacle-gauntlet
+  if (currentScreen === 'game' && currentSceneType === 'obstacle-gauntlet' && latestState) {
+    const avgZ = latestState.players[0]?.data?.avgZ as number ?? 0;
+    const targetZ = avgZ + 15;
+    camera.position.z += (targetZ - camera.position.z) * 0.05;
+    camera.position.y = 20;
+    camera.position.x = 0;
+    camera.lookAt(0, 0, camera.position.z - 20);
+  }
 
   renderer.render(scene, camera);
 }
