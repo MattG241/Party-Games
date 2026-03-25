@@ -387,6 +387,70 @@
     .podium-block.third { height: 110px; background: linear-gradient(180deg, #CD7F32, #8B4513); }
     #confetti-canvas { position: fixed; inset: 0; pointer-events: none; z-index: 100; }
 
+    /* Trivia overlay */
+    #trivia-overlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 24px;
+      pointer-events: none;
+      z-index: 40;
+    }
+    #trivia-category {
+      font-size: 18px;
+      text-transform: uppercase;
+      letter-spacing: 4px;
+      color: #C03BFF;
+      font-weight: 700;
+    }
+    #trivia-question-text {
+      font-size: 36px;
+      font-weight: 900;
+      text-align: center;
+      max-width: 800px;
+      text-shadow: 0 0 30px rgba(192,59,255,0.5);
+      line-height: 1.3;
+    }
+    #trivia-answers {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      max-width: 700px;
+      width: 100%;
+    }
+    .trivia-answer {
+      padding: 16px 24px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 16px;
+      border: 2px solid rgba(255,255,255,0.15);
+      font-size: 22px;
+      font-weight: 700;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    .trivia-answer.correct { border-color: #3BFF6A; background: rgba(59,255,106,0.15); }
+    .trivia-answer.wrong { border-color: #FF3B3B; background: rgba(255,59,59,0.1); opacity: 0.5; }
+    .trivia-answer-label {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+    #trivia-timer {
+      font-size: 64px;
+      font-weight: 900;
+      font-variant-numeric: tabular-nums;
+    }
+
     /* Utility */
     .hidden { display: none !important; }
     .screen { transition: opacity 0.3s; }
@@ -454,6 +518,14 @@
     <div id="victory-title">GAME OVER!</div>
     <div id="podium"></div>
     <canvas id="confetti-canvas"></canvas>
+  </div>
+
+  <!-- Trivia Question Overlay -->
+  <div id="trivia-overlay" class="hidden">
+    <div id="trivia-category"></div>
+    <div id="trivia-timer"></div>
+    <div id="trivia-question-text"></div>
+    <div id="trivia-answers"></div>
   </div>
 
   <script type="module" src="/src/main.ts"></script>

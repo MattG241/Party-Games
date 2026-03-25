@@ -94,6 +94,11 @@ const gameTitleEl = document.getElementById('game-title')!;
 const scoreBarEl = document.getElementById('score-bar')!;
 const countdownNumEl = document.getElementById('countdown-number')!;
 const countdownGameNameEl = document.getElementById('countdown-game-name')!;
+const triviaOverlay = document.getElementById('trivia-overlay')!;
+const triviaCategoryEl = document.getElementById('trivia-category')!;
+const triviaTimerEl = document.getElementById('trivia-timer')!;
+const triviaQuestionEl = document.getElementById('trivia-question-text')!;
+const triviaAnswersEl = document.getElementById('trivia-answers')!;
 
 // ─── Screen Management ────────────────────────────────────────────────────────
 type Screen = 'lobby' | 'game' | 'countdown' | 'vote' | 'results' | 'victory';
@@ -107,6 +112,8 @@ function showScreen(screen: Screen) {
   voteScreen.classList.toggle('hidden', screen !== 'vote');
   resultsScreen.classList.toggle('hidden', screen !== 'results');
   victoryScreen.classList.toggle('hidden', screen !== 'victory');
+  // Hide trivia overlay when leaving game screen
+  if (screen !== 'game') triviaOverlay.classList.add('hidden');
 }
 
 // ─── Scene Management ─────────────────────────────────────────────────────────
@@ -684,9 +691,20 @@ function updatePlayerMeshes(players: PlayerState[]) {
     if (player.eliminated) {
       mat.opacity = 0.3;
       mat.transparent = true;
+      mat.emissiveIntensity = 0.3;
     } else {
       mat.opacity = 1;
       mat.transparent = false;
+      // Bomb holder glow effect
+      if (player.data?.hasBomb) {
+        mat.emissive.setHex(0xFF3B3B);
+        mat.emissiveIntensity = 1.2 + Math.sin(Date.now() * 0.01) * 0.5;
+        mesh.scale.setScalar(1.0 + Math.sin(Date.now() * 0.008) * 0.1);
+      } else {
+        mat.emissive.setHex(0x000000);
+        mat.emissiveIntensity = 0.3;
+        mesh.scale.setScalar(1.0);
+      }
     }
 
     // Make label always face camera
@@ -798,8 +816,27 @@ function updateEntityMeshes(entities: GameState['entities']) {
       mesh.position.lerp(new THREE.Vector3(entity.position.x, 1, entity.position.z), 0.3);
       const active = entity.data?.active as boolean ?? true;
       mesh.visible = active || obsType !== 'crusher';
+    } else if (entity.type === 'sumo_ring') {
+      // Ring is already rendered in the scene builder; no additional mesh needed
     } else if (entity.type === 'trivia_question') {
-      // Trivia handled via HUD overlay, no 3D mesh needed
+      // Display trivia question on HTML overlay
+      triviaOverlay.classList.remove('hidden');
+      const q = entity.data as any;
+      triviaCategoryEl.textContent = q.category ?? '';
+      triviaTimerEl.textContent = String(q.timer ?? '');
+      triviaTimerEl.style.color = (q.timer ?? 15) <= 5 ? '#FF3B3B' : 'white';
+      triviaQuestionEl.textContent = `Q${q.questionNumber}: ${q.question}`;
+      const answers = (q.answers as string[]) ?? [];
+      const labels = ['A', 'B', 'X', 'Y'];
+      const colors = ['#3BFF6A', '#FF3B3B', '#3B8BFF', '#FFE03B'];
+      const correctIdx = q.correctIndex as number;
+      const isReveal = q.phase === 'reveal';
+      triviaAnswersEl.innerHTML = answers.map((a: string, i: number) => {
+        let cls = 'trivia-answer';
+        if (isReveal && i === correctIdx) cls += ' correct';
+        else if (isReveal && i !== correctIdx) cls += ' wrong';
+        return `<div class="${cls}"><div class="trivia-answer-label" style="background:${colors[i]}33;color:${colors[i]}">${labels[i]}</div>${a}</div>`;
+      }).join('');
     } else if (entity.type === 'rhythm_note') {
       let mesh = entityMeshes.get(entity.id) as THREE.Mesh;
       const btn = entity.data?.button as string;
@@ -813,13 +850,19 @@ function updateEntityMeshes(entities: GameState['entities']) {
       }
       mesh.position.lerp(new THREE.Vector3(entity.position.x, 0.5, entity.position.z), 0.4);
     } else if (entity.type === 'drawing') {
-      // Drawing entities rendered as line segments
+      // Drawing entities rendered as line segments on the whiteboard
+      // Whiteboard is 20x15 at position (0, 7.5, -2)
       let group = entityMeshes.get(entity.id) as THREE.Group;
       if (group) { scene.remove(group); entityMeshes.delete(entity.id); }
       const strokes = entity.data?.strokes as { x: number; y: number }[] | undefined;
       if (strokes && strokes.length > 1) {
         group = new THREE.Group();
-        const pts = strokes.map(s => new THREE.Vector3(s.x * 8, 7.5 + s.y * 6, -1.9));
+        // Map joystick coordinates (-1 to 1) to whiteboard space
+        const pts = strokes.map(s => new THREE.Vector3(
+          s.x * 9,           // -1..1 -> -9..9 (within 20-wide canvas)
+          7.5 - s.y * 6.5,   // -1..1 -> 14..1 (inverted Y, within 15-tall canvas)
+          -1.9               // slightly in front of whiteboard at z=-2
+        ));
         const lineGeo = new THREE.BufferGeometry().setFromPoints(pts);
         const lineMat = new THREE.LineBasicMaterial({ color: 0x333333, linewidth: 2 });
         group.add(new THREE.Line(lineGeo, lineMat));
@@ -1150,6 +1193,8 @@ gws.onMessage((msg) => {
         updateHUD(msg);
         updatePlayerMeshes(msg.players);
         updateEntityMeshes(msg.entities);
+        // Hide trivia overlay if not in trivia game
+        if (msg.gameId !== 'trivia-royale') triviaOverlay.classList.add('hidden');
       } else if (msg.phase === 'victory') {
         showVictory(msg.players, msg.scores);
       } else if (msg.phase === 'lobby') {
