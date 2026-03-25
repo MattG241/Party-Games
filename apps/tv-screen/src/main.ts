@@ -354,6 +354,17 @@ function buildSumoScene() {
   );
   scene.add(ringLine);
 
+  // Danger zone ring (inner warning at 80% radius)
+  const dangerPts: THREE.Vector3[] = [];
+  for (let i = 0; i <= 128; i++) {
+    const a = (i / 128) * Math.PI * 2;
+    dangerPts.push(new THREE.Vector3(Math.cos(a) * 8, 0.27, Math.sin(a) * 8));
+  }
+  scene.add(new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(dangerPts),
+    new THREE.LineBasicMaterial({ color: 0xFF3B3B, transparent: true, opacity: 0.2 })
+  ));
+
   // Crowd lights
   const crowdColors = [0xFF8C3B, 0xFFE03B, 0xFF3B3B];
   for (let i = 0; i < 12; i++) {

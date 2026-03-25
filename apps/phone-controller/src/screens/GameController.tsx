@@ -192,12 +192,32 @@ function renderButtons(
       );
     }
 
-    case 'sumo-smash':
+    case 'sumo-smash': {
+      const chargeCd = (myPlayer?.data?.chargeCooldown as number) ?? 0;
+      const canCharge = chargeCd <= 0;
+      const edgeDist = (myPlayer?.data?.edgeDistance as number) ?? 10;
+      const aliveCount = (myPlayer?.data?.aliveCount as number) ?? 0;
+      const nearEdge = edgeDist < 3;
       return (
-        <div style={btnStyles.grid1}>
-          <ActionButton label="CHARGE" color={hex} size="large" onPress={() => pressButton('charge')} emoji="💥" />
+        <div style={{ ...btnStyles.grid1, flexDirection: 'column', gap: '12px' }}>
+          {nearEdge && (
+            <div style={{ fontSize: 14, color: '#FF3B3B', fontWeight: 700, animation: 'blink 0.5s infinite alternate' }}>
+              ⚠️ NEAR EDGE!
+            </div>
+          )}
+          <ActionButton
+            label={canCharge ? 'CHARGE' : `${chargeCd.toFixed(1)}s`}
+            color={canCharge ? hex : '#555555'}
+            size="large"
+            onPress={() => pressButton('charge')}
+            emoji={canCharge ? '💥' : '⏳'}
+          />
+          <div style={{ fontSize: 12, opacity: 0.5, textAlign: 'center' }}>
+            {aliveCount} remaining
+          </div>
         </div>
       );
+    }
 
     case 'platform-panic': {
       const jumpCd = (myPlayer?.data?.jumpCooldown as number) ?? 0;
