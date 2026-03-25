@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Party Blast TV</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0a1a;
+      overflow: hidden;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      color: white;
+      width: 100vw;
+      height: 100vh;
+    }
+    #canvas-container {
+      position: fixed;
+      inset: 0;
+    }
+    canvas#three-canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    /* HUD overlay */
+    #hud {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+    }
+    #hud-top {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      background: linear-gradient(180deg, rgba(0,0,0,0.7) 0%, transparent 100%);
+    }
+    #game-title {
+      font-size: 28px;
+      font-weight: 900;
+      letter-spacing: 2px;
+      text-shadow: 0 0 20px currentColor;
+    }
+    #timer-display {
+      font-size: 48px;
+      font-weight: 900;
+      font-variant-numeric: tabular-nums;
+      text-shadow: 0 0 30px rgba(255,255,255,0.8);
+      min-width: 100px;
+      text-align: center;
+    }
+    #timer-display.urgent { color: #FF3B3B; animation: pulse 0.5s infinite alternate; }
+    @keyframes pulse { from { opacity: 1; } to { opacity: 0.5; } }
+    #round-display {
+      font-size: 20px;
+      opacity: 0.8;
+      font-weight: 700;
+    }
+    /* Player score bar */
+    #score-bar {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      display: flex;
+      gap: 8px;
+      padding: 12px 16px;
+      background: linear-gradient(0deg, rgba(0,0,0,0.8) 0%, transparent 100%);
+      align-items: flex-end;
+    }
+    .player-score-card {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 8px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 12px;
+      border: 2px solid transparent;
+      transition: all 0.3s;
+      min-width: 0;
+    }
+    .player-score-card.eliminated {
+      opacity: 0.4;
+      filter: grayscale(1);
+    }
+    .player-score-card.disconnected { opacity: 0.5; }
+    .player-avatar-tv {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 900;
+    }
+    .player-name-tv {
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      width: 100%;
+      text-align: center;
+    }
+    .player-pts-tv {
+      font-size: 20px;
+      font-weight: 900;
+    }
+    .player-pos-badge {
+      font-size: 10px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 4px;
+      padding: 1px 5px;
+    }
+    /* Lobby screen */
+    #lobby-screen {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 32px;
+      background: radial-gradient(ellipse at center, #1a0533 0%, #0a0a1a 70%);
+    }
+    #lobby-title {
+      font-size: 96px;
+      font-weight: 900;
+      background: linear-gradient(135deg, #FF3BB0, #C03BFF, #3B8BFF, #3BFFF0);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: -2px;
+      text-align: center;
+      filter: drop-shadow(0 0 40px rgba(192,59,255,0.5));
+    }
+    #lobby-subtitle { font-size: 22px; opacity: 0.7; letter-spacing: 4px; text-transform: uppercase; }
+    #lobby-main {
+      display: flex;
+      gap: 64px;
+      align-items: flex-start;
+    }
+    #room-code-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+    #room-code-label { font-size: 18px; opacity: 0.7; text-transform: uppercase; letter-spacing: 3px; }
+    #room-code {
+      font-size: 88px;
+      font-weight: 900;
+      letter-spacing: 16px;
+      color: #FFE03B;
+      text-shadow: 0 0 40px rgba(255,224,59,0.6);
+    }
+    #join-url { font-size: 18px; opacity: 0.6; }
+    #qr-container {
+      background: white;
+      padding: 16px;
+      border-radius: 16px;
+      width: 200px;
+      height: 200px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #qr-container img { width: 100%; height: 100%; }
+    #player-slots {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-width: 280px;
+    }
+    #player-slots-title { font-size: 18px; opacity: 0.7; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 8px; }
+    .player-slot {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.1);
+      animation: slideIn 0.4s ease;
+    }
+    @keyframes slideIn { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
+    .player-slot-dot {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      font-size: 14px;
+    }
+    .player-slot-name { font-weight: 700; font-size: 18px; }
+    .player-slot-host { font-size: 11px; opacity: 0.6; margin-left: auto; }
+    .empty-slot {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.02);
+      border-radius: 12px;
+      border: 1px dashed rgba(255,255,255,0.08);
+      opacity: 0.5;
+    }
+    .empty-slot-dot { width: 32px; height: 32px; border-radius: 50%; background: rgba(255,255,255,0.1); }
+    .empty-slot-text { font-size: 14px; opacity: 0.4; }
+    #lobby-hint { font-size: 20px; opacity: 0.5; text-align: center; }
+    #start-hint {
+      font-size: 24px;
+      opacity: 0.8;
+      animation: blink 1.5s infinite;
+      color: #3BFF6A;
+    }
+    @keyframes blink { 0%,100% { opacity: 0.8; } 50% { opacity: 0.3; } }
+
+    /* Countdown overlay */
+    #countdown-overlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 24px;
+      background: rgba(0,0,0,0.7);
+      z-index: 50;
+    }
+    #countdown-game-name {
+      font-size: 48px;
+      font-weight: 900;
+      color: #FFE03B;
+      text-shadow: 0 0 40px rgba(255,224,59,0.6);
+      letter-spacing: 3px;
+    }
+    #countdown-number {
+      font-size: 200px;
+      font-weight: 900;
+      line-height: 1;
+      color: white;
+      text-shadow: 0 0 60px rgba(255,255,255,0.6);
+    }
+    #countdown-go {
+      font-size: 120px;
+      font-weight: 900;
+      color: #3BFF6A;
+      text-shadow: 0 0 60px rgba(59,255,106,0.6);
+    }
+
+    /* Game select / voting screen */
+    #vote-screen {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 32px;
+      background: radial-gradient(ellipse at center, #0d0520 0%, #0a0a1a 70%);
+    }
+    #vote-title { font-size: 36px; font-weight: 900; opacity: 0.8; letter-spacing: 4px; }
+    #vote-options { display: flex; gap: 32px; }
+    .vote-card {
+      width: 260px;
+      padding: 32px 24px;
+      background: rgba(255,255,255,0.07);
+      border-radius: 24px;
+      border: 2px solid rgba(255,255,255,0.1);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      transition: all 0.3s;
+    }
+    .vote-card.leading {
+      border-color: #FFE03B;
+      background: rgba(255,224,59,0.1);
+      transform: scale(1.05);
+    }
+    .vote-emoji { font-size: 64px; }
+    .vote-game-name { font-size: 22px; font-weight: 900; text-align: center; }
+    .vote-count { font-size: 48px; font-weight: 900; color: #FFE03B; }
+    .vote-bar-container { width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; }
+    .vote-bar { height: 100%; background: #FFE03B; border-radius: 4px; transition: width 0.5s ease; }
+    #vote-timer-bar {
+      width: 600px;
+      height: 6px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    #vote-timer-fill { height: 100%; background: #C03BFF; border-radius: 3px; transition: width 0.5s linear; }
+
+    /* Results screen */
+    #results-screen {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 24px;
+      background: radial-gradient(ellipse at center, #0d1f0d 0%, #0a0a1a 70%);
+    }
+    #results-title { font-size: 56px; font-weight: 900; color: #3BFF6A; text-shadow: 0 0 40px rgba(59,255,106,0.5); }
+    #results-subtitle { font-size: 20px; opacity: 0.6; }
+    #results-list { display: flex; flex-direction: column; gap: 10px; min-width: 480px; }
+    .result-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 12px 20px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.08);
+      animation: resultSlide 0.4s ease both;
+    }
+    @keyframes resultSlide { from { opacity: 0; transform: translateX(-40px); } to { opacity: 1; transform: translateX(0); } }
+    .result-pos { font-size: 32px; font-weight: 900; min-width: 48px; }
+    .result-pos.gold { color: #FFD700; }
+    .result-pos.silver { color: #C0C0C0; }
+    .result-pos.bronze { color: #CD7F32; }
+    .result-color-dot { width: 36px; height: 36px; border-radius: 50%; }
+    .result-name { font-size: 22px; font-weight: 700; flex: 1; }
+    .result-round-pts { font-size: 20px; color: #3BFF6A; font-weight: 700; min-width: 80px; text-align: right; }
+    .result-total-pts { font-size: 28px; font-weight: 900; min-width: 80px; text-align: right; }
+    .result-delta { font-size: 14px; color: #3BFF6A; opacity: 0.8; }
+
+    /* Victory podium */
+    #victory-screen {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      background: radial-gradient(ellipse at center, #1a1000 0%, #0a0a1a 70%);
+      overflow: hidden;
+    }
+    #victory-title {
+      font-size: 80px;
+      font-weight: 900;
+      background: linear-gradient(135deg, #FFD700, #FF8C3B, #FFD700);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-shadow: none;
+      filter: drop-shadow(0 0 40px rgba(255,215,0,0.6));
+      margin-bottom: 8px;
+    }
+    #podium {
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+      margin-top: 16px;
+    }
+    .podium-step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+    .podium-player-info { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    .podium-avatar { width: 72px; height: 72px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 900; border: 4px solid rgba(255,255,255,0.3); }
+    .podium-player-name { font-size: 18px; font-weight: 700; }
+    .podium-player-score { font-size: 24px; font-weight: 900; color: #FFD700; }
+    .podium-block {
+      width: 160px;
+      border-radius: 8px 8px 0 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 64px;
+      font-weight: 900;
+    }
+    .podium-block.first { height: 200px; background: linear-gradient(180deg, #FFD700, #B8860B); }
+    .podium-block.second { height: 150px; background: linear-gradient(180deg, #C0C0C0, #808080); }
+    .podium-block.third { height: 110px; background: linear-gradient(180deg, #CD7F32, #8B4513); }
+    #confetti-canvas { position: fixed; inset: 0; pointer-events: none; z-index: 100; }
+
+    /* Utility */
+    .hidden { display: none !important; }
+    .screen { transition: opacity 0.3s; }
+  </style>
+</head>
+<body>
+  <div id="canvas-container">
+    <canvas id="three-canvas"></canvas>
+  </div>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <div id="hud-top">
+      <div id="game-title">PARTY BLAST</div>
+      <div id="timer-display">3:00</div>
+      <div id="round-display">ROUND 1/5</div>
+    </div>
+    <div id="score-bar"></div>
+  </div>
+
+  <!-- Lobby Screen -->
+  <div id="lobby-screen">
+    <div id="lobby-title">PARTY BLAST</div>
+    <div id="lobby-subtitle">Grab your phones and join the party!</div>
+    <div id="lobby-main">
+      <div id="room-code-section">
+        <div id="room-code-label">Room Code</div>
+        <div id="room-code">----</div>
+        <div id="join-url">party-blast.local</div>
+        <div id="qr-container">
+          <div style="opacity:0.3;font-size:12px;text-align:center;color:#000">QR loading...</div>
+        </div>
+        <div id="lobby-hint">Scan QR or enter code at<br><strong>party-blast.local</strong></div>
+      </div>
+      <div id="player-slots">
+        <div id="player-slots-title">Players (0/8)</div>
+        <!-- Populated dynamically -->
+      </div>
+    </div>
+    <div id="start-hint" class="hidden">Host: Press START to begin!</div>
+  </div>
+
+  <!-- Countdown Overlay -->
+  <div id="countdown-overlay" class="hidden">
+    <div id="countdown-game-name">PLATFORM PANIC</div>
+    <div id="countdown-number">3</div>
+  </div>
+
+  <!-- Vote Screen -->
+  <div id="vote-screen" class="hidden">
+    <div id="vote-title">VOTE FOR NEXT GAME</div>
+    <div id="vote-options"></div>
+    <div id="vote-timer-bar"><div id="vote-timer-fill" style="width:100%"></div></div>
+  </div>
+
+  <!-- Results Screen -->
+  <div id="results-screen" class="hidden">
+    <div id="results-title">ROUND RESULTS</div>
+    <div id="results-subtitle">Round 1 of 5</div>
+    <div id="results-list"></div>
+  </div>
+
+  <!-- Victory Screen -->
+  <div id="victory-screen" class="hidden">
+    <div id="victory-title">GAME OVER!</div>
+    <div id="podium"></div>
+    <canvas id="confetti-canvas"></canvas>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
