@@ -19,7 +19,8 @@ interface KartPlayer {
   checkpoint: number;
   finished: boolean;
   finishTime: number;
-  boostTimer: number;
+  boostTimer: number;    // remaining boost duration (speed boost active while > 0)
+  boostCooldown: number; // time until boost can be used again
   steerX: number;
   throttle: number;
   brake: number;
@@ -54,8 +55,8 @@ export class KartBlitz extends BaseGame {
     for (const [id] of room.players) {
       this.kartPlayers.set(id, {
         id,
-        x: -5 + (i % 4) * 3,
-        z: -18 + Math.floor(i / 4) * 3,
+        x: -4 + (i % 4) * 2.5,
+        z: -22 + Math.floor(i / 4) * 2, // far enough from CP0 at (0,-15) r=5
         angle: 0, // facing +Z toward first checkpoint
         speed: 0,
         lap: 0,
@@ -63,6 +64,7 @@ export class KartBlitz extends BaseGame {
         finished: false,
         finishTime: 0,
         boostTimer: 0,
+        boostCooldown: 0,
         steerX: 0,
         throttle: 0,
         brake: 0,
@@ -87,8 +89,9 @@ export class KartBlitz extends BaseGame {
     }
 
     const buttons = data.buttons as Record<string, boolean> | undefined;
-    if (buttons?.boost && p.boostTimer <= 0) {
-      p.boostTimer = 1.5;
+    if (buttons?.boost && p.boostCooldown <= 0) {
+      p.boostTimer = 1.5;   // boost lasts 1.5s
+      p.boostCooldown = 4;  // can't boost again for 4s
       p.speed = Math.min(p.speed + 6, BOOST_SPEED);
     }
   }
@@ -98,6 +101,7 @@ export class KartBlitz extends BaseGame {
       if (p.finished) continue;
 
       if (p.boostTimer > 0) p.boostTimer -= dt;
+      if (p.boostCooldown > 0) p.boostCooldown -= dt;
 
       // Apply steering and acceleration from stored input
       const maxSpd = p.boostTimer > 0 ? BOOST_SPEED : MAX_SPEED;
@@ -158,23 +162,27 @@ export class KartBlitz extends BaseGame {
         }
       }
 
-      // Player-player collisions
-      for (const other of this.kartPlayers.values()) {
-        if (other.id === p.id || other.finished) continue;
-        const dx = other.x - p.x;
-        const dz = other.z - p.z;
+    }
+
+    // Player-player collisions (separate pass to avoid double-counting)
+    const players = [...this.kartPlayers.values()].filter(p => !p.finished);
+    for (let i = 0; i < players.length; i++) {
+      for (let j = i + 1; j < players.length; j++) {
+        const a = players[i], b = players[j];
+        const dx = b.x - a.x;
+        const dz = b.z - a.z;
         const dist = Math.sqrt(dx * dx + dz * dz);
         if (dist < 1.5 && dist > 0) {
           const nx = dx / dist;
           const nz = dz / dist;
-          other.x += nx * 0.5;
-          other.z += nz * 0.5;
-          p.x -= nx * 0.5;
-          p.z -= nz * 0.5;
+          b.x += nx * 0.5;
+          b.z += nz * 0.5;
+          a.x -= nx * 0.5;
+          a.z -= nz * 0.5;
           // Speed transfer
-          const avgSpeed = (p.speed + other.speed) / 2;
-          p.speed = avgSpeed * 0.8;
-          other.speed = avgSpeed * 0.8;
+          const avgSpeed = (a.speed + b.speed) / 2;
+          a.speed = avgSpeed * 0.8;
+          b.speed = avgSpeed * 0.8;
         }
       }
     }
@@ -208,7 +216,7 @@ export class KartBlitz extends BaseGame {
           checkpoint: kp?.checkpoint ?? 0,
           finished: kp?.finished ?? false,
           boosting: (kp?.boostTimer ?? 0) > 0,
-          boostCooldown: Math.max(0, kp?.boostTimer ?? 0),
+          boostCooldown: Math.max(0, kp?.boostCooldown ?? 0),
         },
       };
     });
