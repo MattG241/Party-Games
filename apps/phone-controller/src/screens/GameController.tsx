@@ -70,6 +70,7 @@ export function GameController({ gameId, myColor, myPlayer, timeRemaining, onInp
   const isUrgent = secs <= 10;
 
   const isEliminated = myPlayer?.eliminated ?? false;
+  const isFinished = myPlayer?.data?.finished ?? false;
 
   return (
     <div style={styles.container}>
@@ -81,8 +82,17 @@ export function GameController({ gameId, myColor, myPlayer, timeRemaining, onInp
         <div style={styles.statusCenter}>
           {isEliminated ? (
             <div style={styles.eliminatedText}>ELIMINATED</div>
+          ) : isFinished ? (
+            <div style={{ fontSize: '14px', color: '#3BFF6A', fontWeight: 700, letterSpacing: '2px' }}>FINISHED!</div>
           ) : (
-            <div style={styles.statusName}>{myPlayer?.name}</div>
+            <div style={styles.statusName}>
+              {myPlayer?.name}
+              {gameId === 'kart-blitz' && myPlayer?.data?.lap !== undefined && (
+                <span style={{ marginLeft: 8, fontSize: 12, opacity: 0.7 }}>
+                  LAP {Math.min(((myPlayer.data.lap as number) ?? 0) + 1, myPlayer.data.totalLaps as number ?? 3)}/{myPlayer.data.totalLaps as number ?? 3}
+                </span>
+              )}
+            </div>
           )}
         </div>
         <div style={{ ...styles.timer, color: isUrgent ? '#FF3B3B' : 'white' }}>
@@ -90,10 +100,12 @@ export function GameController({ gameId, myColor, myPlayer, timeRemaining, onInp
         </div>
       </div>
 
-      {isEliminated ? (
+      {isEliminated || isFinished ? (
         <div style={styles.eliminatedScreen}>
-          <div style={styles.eliminatedEmoji}>💀</div>
-          <div style={styles.eliminatedTitle}>You're out!</div>
+          <div style={styles.eliminatedEmoji}>{isFinished ? '🏁' : '💀'}</div>
+          <div style={{ ...styles.eliminatedTitle, color: isFinished ? '#3BFF6A' : '#FF3B3B' }}>
+            {isFinished ? 'Race Complete!' : "You're out!"}
+          </div>
           <div style={styles.eliminatedHint}>Watch the TV screen...</div>
         </div>
       ) : (
@@ -105,7 +117,7 @@ export function GameController({ gameId, myColor, myPlayer, timeRemaining, onInp
 
           {/* Action buttons based on game */}
           <div style={styles.buttonArea}>
-            {renderButtons(gameId, hex, pressButton)}
+            {renderButtons(gameId, hex, pressButton, myPlayer)}
           </div>
         </>
       )}
@@ -116,7 +128,8 @@ export function GameController({ gameId, myColor, myPlayer, timeRemaining, onInp
 function renderButtons(
   gameId: GameId,
   hex: string,
-  pressButton: (name: string) => void
+  pressButton: (name: string) => void,
+  myPlayer?: PlayerState,
 ): React.ReactNode {
   switch (gameId) {
     case 'arena-ball':
@@ -154,12 +167,32 @@ function renderButtons(
         </div>
       );
 
-    case 'kart-blitz':
+    case 'kart-blitz': {
+      const boostCooldown = (myPlayer?.data?.boostCooldown as number) ?? 0;
+      const canBoost = boostCooldown <= 0;
       return (
-        <div style={btnStyles.grid1}>
-          <ActionButton label="BOOST" color="#FF8C3B" size="large" onPress={() => pressButton('boost')} emoji="🔥" />
+        <div style={{ ...btnStyles.grid1, flexDirection: 'column', gap: '12px' }}>
+          <ActionButton
+            label={canBoost ? 'BOOST' : `${boostCooldown.toFixed(1)}s`}
+            color={canBoost ? '#FF8C3B' : '#555555'}
+            size="large"
+            onPress={() => pressButton('boost')}
+            emoji={canBoost ? '🔥' : '⏳'}
+          />
+          {myPlayer?.data?.speed !== undefined && (
+            <div style={{ width: '140px', height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
+              <div style={{
+                width: `${Math.min(100, ((myPlayer.data.speed as number) / 18) * 100)}%`,
+                height: '100%',
+                background: myPlayer.data.boosting ? '#FF8C3B' : '#3BFF6A',
+                borderRadius: '4px',
+                transition: 'width 0.1s',
+              }} />
+            </div>
+          )}
         </div>
       );
+    }
 
     case 'doodle-dash':
       return (

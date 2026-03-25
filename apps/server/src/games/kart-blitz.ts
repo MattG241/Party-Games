@@ -204,9 +204,11 @@ export class KartBlitz extends BaseGame {
           angle: kp?.angle ?? 0,
           speed: kp?.speed ?? 0,
           lap: kp?.lap ?? 0,
+          totalLaps: TOTAL_LAPS,
           checkpoint: kp?.checkpoint ?? 0,
           finished: kp?.finished ?? false,
           boosting: (kp?.boostTimer ?? 0) > 0,
+          boostCooldown: Math.max(0, kp?.boostTimer ?? 0),
         },
       };
     });

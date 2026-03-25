@@ -353,7 +353,7 @@ function buildSumoScene() {
 
 function buildKartBlitzScene() {
   scene.background = new THREE.Color(0x0a1a2a);
-  scene.fog = new THREE.Fog(0x0a1a2a, 40, 100);
+  scene.fog = new THREE.Fog(0x0a1a2a, 50, 120);
 
   scene.add(new THREE.AmbientLight(0x446688, 2));
   const sun = new THREE.DirectionalLight(0xffffff, 3);
@@ -361,35 +361,93 @@ function buildKartBlitzScene() {
   sun.castShadow = true;
   scene.add(sun);
 
-  // Track ground
-  const groundGeo = new THREE.PlaneGeometry(60, 60);
+  // Track ground (grass)
+  const groundGeo = new THREE.PlaneGeometry(70, 70);
   const groundMat = new THREE.MeshStandardMaterial({ color: 0x2a4a2a });
   const ground = new THREE.Mesh(groundGeo, groundMat);
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
   scene.add(ground);
 
-  // Track path (torus-like ring)
-  const trackGeo = new THREE.TorusGeometry(18, 3, 4, 64);
-  const trackMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.9 });
-  const track = new THREE.Mesh(trackGeo, trackMat);
-  track.rotation.x = Math.PI / 2;
-  track.position.y = -0.3;
-  track.receiveShadow = true;
-  scene.add(track);
-
-  // Track edge lines
-  const lineMat = new THREE.LineBasicMaterial({ color: 0xFFE03B, transparent: true, opacity: 0.6 });
-  for (const r of [15, 21]) {
-    const pts: THREE.Vector3[] = [];
-    for (let i = 0; i <= 128; i++) {
-      const a = (i / 128) * Math.PI * 2;
-      pts.push(new THREE.Vector3(Math.cos(a) * r, 0.01, Math.sin(a) * r));
-    }
-    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lineMat));
+  // Render actual track surface between checkpoints
+  // Create a wide path following the checkpoint loop
+  const cpLoop = [
+    { x: 0, z: -15 }, { x: 15, z: -10 }, { x: 18, z: 5 },
+    { x: 10, z: 15 }, { x: -5, z: 18 }, { x: -18, z: 10 },
+    { x: -18, z: -5 }, { x: -10, z: -15 },
+  ];
+  // Smooth track path with road surface
+  const trackWidth = 6;
+  const trackPts: THREE.Vector3[] = [];
+  const numSegments = 128;
+  for (let i = 0; i <= numSegments; i++) {
+    const t = i / numSegments;
+    const idx = t * cpLoop.length;
+    const i0 = Math.floor(idx) % cpLoop.length;
+    const i1 = (i0 + 1) % cpLoop.length;
+    const frac = idx - Math.floor(idx);
+    // Catmull-rom style smoothing
+    const im1 = (i0 - 1 + cpLoop.length) % cpLoop.length;
+    const i2 = (i1 + 1) % cpLoop.length;
+    const tt = frac;
+    const tt2 = tt * tt;
+    const tt3 = tt2 * tt;
+    const cx = 0.5 * ((2 * cpLoop[i0].x) +
+      (-cpLoop[im1].x + cpLoop[i1].x) * tt +
+      (2 * cpLoop[im1].x - 5 * cpLoop[i0].x + 4 * cpLoop[i1].x - cpLoop[i2].x) * tt2 +
+      (-cpLoop[im1].x + 3 * cpLoop[i0].x - 3 * cpLoop[i1].x + cpLoop[i2].x) * tt3);
+    const cz = 0.5 * ((2 * cpLoop[i0].z) +
+      (-cpLoop[im1].z + cpLoop[i1].z) * tt +
+      (2 * cpLoop[im1].z - 5 * cpLoop[i0].z + 4 * cpLoop[i1].z - cpLoop[i2].z) * tt2 +
+      (-cpLoop[im1].z + 3 * cpLoop[i0].z - 3 * cpLoop[i1].z + cpLoop[i2].z) * tt3);
+    trackPts.push(new THREE.Vector3(cx, 0.02, cz));
   }
 
-  // Spotlights
+  // Draw track surface as a series of quads
+  const trackShape: THREE.Vector3[] = [];
+  for (let i = 0; i < trackPts.length - 1; i++) {
+    const curr = trackPts[i];
+    const next = trackPts[i + 1];
+    const dx = next.x - curr.x;
+    const dz = next.z - curr.z;
+    const len = Math.sqrt(dx * dx + dz * dz) || 1;
+    const nx = -dz / len;
+    const nz = dx / len;
+    trackShape.push(
+      new THREE.Vector3(curr.x + nx * trackWidth, 0.02, curr.z + nz * trackWidth),
+      new THREE.Vector3(curr.x - nx * trackWidth, 0.02, curr.z - nz * trackWidth),
+    );
+  }
+  // Build geometry from track shape
+  const trackGeo = new THREE.BufferGeometry();
+  const vertices: number[] = [];
+  for (let i = 0; i < trackShape.length - 2; i += 2) {
+    const tl = trackShape[i], tr = trackShape[i + 1];
+    const bl = trackShape[i + 2], br = trackShape[i + 3];
+    if (!tl || !tr || !bl || !br) continue;
+    vertices.push(tl.x, tl.y, tl.z, bl.x, bl.y, bl.z, tr.x, tr.y, tr.z);
+    vertices.push(tr.x, tr.y, tr.z, bl.x, bl.y, bl.z, br.x, br.y, br.z);
+  }
+  trackGeo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+  trackGeo.computeVertexNormals();
+  const trackMat = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.9 });
+  const trackMesh = new THREE.Mesh(trackGeo, trackMat);
+  trackMesh.receiveShadow = true;
+  scene.add(trackMesh);
+
+  // Track edge lines (center line)
+  const centerLineMat = new THREE.LineBasicMaterial({ color: 0xFFE03B, transparent: true, opacity: 0.4 });
+  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(trackPts), centerLineMat));
+
+  // Start/finish line
+  const startPts = [
+    new THREE.Vector3(-trackWidth, 0.03, -16),
+    new THREE.Vector3(trackWidth, 0.03, -16),
+  ];
+  const startLineMat = new THREE.LineBasicMaterial({ color: 0xffffff });
+  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(startPts), startLineMat));
+
+  // Spotlights at corners
   [0xFF3B3B, 0x3B8BFF, 0x3BFF6A, 0xFFE03B].forEach((c, i) => {
     const pl = new THREE.PointLight(c, 3, 30);
     const a = (i / 4) * Math.PI * 2;
@@ -397,7 +455,7 @@ function buildKartBlitzScene() {
     scene.add(pl);
   });
 
-  camera.position.set(0, 35, 35);
+  camera.position.set(0, 30, 30);
   camera.lookAt(0, 0, 0);
 }
 
@@ -707,9 +765,22 @@ function updatePlayerMeshes(players: PlayerState[]) {
       }
     }
 
-    // Rotate kart to face driving direction
+    // Rotate player to face driving direction (kart-blitz)
     if (player.data?.angle !== undefined) {
       mesh.rotation.y = player.data.angle as number;
+    }
+
+    // Boost visual: pulsing emissive glow when boosting
+    if (player.data?.boosting) {
+      mat.emissiveIntensity = 0.8 + Math.sin(Date.now() * 0.02) * 0.3;
+    } else if (!player.data?.hasBomb) {
+      mat.emissiveIntensity = 0.3;
+    }
+
+    // Finished karts get transparent
+    if (player.data?.finished) {
+      mat.opacity = 0.5;
+      mat.transparent = true;
     }
 
     // Make label always face camera
@@ -797,14 +868,22 @@ function updateEntityMeshes(entities: GameState['entities']) {
       let mesh = entityMeshes.get(entity.id) as THREE.Mesh;
       if (!mesh) {
         const radius = (entity.data?.radius as number) ?? 5;
-        const geo = new THREE.TorusGeometry(radius, 0.1, 8, 32);
-        const mat = new THREE.MeshBasicMaterial({ color: 0xFFE03B, transparent: true, opacity: 0.3 });
+        const geo = new THREE.TorusGeometry(radius, 0.15, 8, 32);
+        const mat = new THREE.MeshBasicMaterial({ color: 0xFFE03B, transparent: true, opacity: 0.15 });
         mesh = new THREE.Mesh(geo, mat);
         mesh.rotation.x = Math.PI / 2;
         scene.add(mesh);
         entityMeshes.set(entity.id, mesh);
       }
       mesh.position.set(entity.position.x, 0.1, entity.position.z);
+      // Highlight next checkpoint for any player (pick the lowest next checkpoint among all)
+      const cpIndex = (entity.data?.index as number) ?? -1;
+      const mat = mesh.material as THREE.MeshBasicMaterial;
+      if (latestState && latestState.gameId === 'kart-blitz') {
+        const isNext = latestState.players.some(p => (p.data?.checkpoint as number) === cpIndex && !p.data?.finished);
+        mat.opacity = isNext ? 0.5 : 0.1;
+        mat.color.setHex(isNext ? 0x3BFF6A : 0xFFE03B);
+      }
     } else if (entity.type.startsWith('obstacle_')) {
       let mesh = entityMeshes.get(entity.id) as THREE.Mesh;
       const width = (entity.data?.width as number) ?? 2;
