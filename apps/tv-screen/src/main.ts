@@ -1,6 +1,29 @@
 import * as THREE from 'three';
+import { Howl } from 'howler';
 import { GameState, PlayerState, GameId, COLOR_HEX, GAME_NAMES, GAME_EMOJIS, GAME_DURATIONS } from '@party-blast/shared';
 import { GameWebSocket } from './ws';
+
+// ─── Background Music ────────────────────────────────────────────────────────
+const bgMusic = new Howl({
+  src: ['/tv/Good Luck Babe - Chappell Roan.mp3'],
+  loop: true,
+  volume: 0.4,
+  html5: true,
+});
+
+// Browsers require a user gesture before audio can play.
+// Start playback on the first click/tap/keypress anywhere on the page.
+function startBgMusic() {
+  if (!bgMusic.playing()) {
+    bgMusic.play();
+  }
+  document.removeEventListener('click', startBgMusic);
+  document.removeEventListener('keydown', startBgMusic);
+  document.removeEventListener('touchstart', startBgMusic);
+}
+document.addEventListener('click', startBgMusic);
+document.addEventListener('keydown', startBgMusic);
+document.addEventListener('touchstart', startBgMusic);
 
 // ─── WebSocket ────────────────────────────────────────────────────────────────
 function getWsUrl(): string {
