@@ -916,6 +916,16 @@ function updateEntityMeshes(entities: GameState['entities']) {
         mesh.add(ring);
       }
       mesh.position.lerp(new THREE.Vector3(entity.position.x, entity.position.y, entity.position.z), 0.3);
+    } else if (entity.type === 'projectile') {
+      let mesh = entityMeshes.get(entity.id) as THREE.Mesh;
+      if (!mesh) {
+        const geo = new THREE.SphereGeometry(0.15, 8, 8);
+        const mat = new THREE.MeshBasicMaterial({ color: 0xFFE03B });
+        mesh = new THREE.Mesh(geo, mat);
+        scene.add(mesh);
+        entityMeshes.set(entity.id, mesh);
+      }
+      mesh.position.set(entity.position.x, entity.position.y, entity.position.z);
     } else if (entity.type === 'checkpoint') {
       let mesh = entityMeshes.get(entity.id) as THREE.Mesh;
       if (!mesh) {

@@ -13,6 +13,16 @@ interface Target {
   respawnTimer: number;
 }
 
+interface Projectile {
+  id: string;
+  x: number;
+  z: number;
+  dx: number;
+  dz: number;
+  life: number;
+  playerId: string;
+}
+
 interface BullseyePlayer {
   id: string;
   x: number;
@@ -24,12 +34,21 @@ interface BullseyePlayer {
   points: number;
 }
 
-const ARENA_SIZE = 16;
+const ARENA_SIZE = 14;
+const MOVE_SPEED = 6;
+const FRICTION = 0.90;
+const THROW_COOLDOWN = 0.5;
+const THROW_RANGE = 18;
+const THROW_SPEED = 30;
+const PLAYER_RADIUS = 0.6;
+const MIN_TARGET_SPAWN_DIST = 3;
 
 export class BullseyeBonanza extends BaseGame {
   private bPlayers: Map<string, BullseyePlayer> = new Map();
   private targets: Target[] = [];
+  private projectiles: Projectile[] = [];
   private nextTargetId = 0;
+  private nextProjectileId = 0;
 
   constructor(room: GameRoom) {
     super(room, 90);
@@ -38,17 +57,16 @@ export class BullseyeBonanza extends BaseGame {
       const angle = (i / room.players.size) * Math.PI * 2;
       this.bPlayers.set(id, {
         id,
-        x: Math.cos(angle) * 6,
-        z: Math.sin(angle) * 6,
+        x: Math.cos(angle) * 5,
+        z: Math.sin(angle) * 5,
         vx: 0, vz: 0,
-        aimAngle: 0,
+        aimAngle: angle + Math.PI, // face center
         throwCooldown: 0,
         points: 0,
       });
       i++;
     }
-    // Spawn initial targets
-    for (let t = 0; t < 6; t++) {
+    for (let t = 0; t < 8; t++) {
       this.spawnTarget();
     }
   }
@@ -57,18 +75,34 @@ export class BullseyeBonanza extends BaseGame {
 
   private spawnTarget(): void {
     const id = `target_${this.nextTargetId++}`;
-    const x = (Math.random() - 0.5) * ARENA_SIZE * 1.5;
-    const z = (Math.random() - 0.5) * ARENA_SIZE * 1.5;
+    let x: number, z: number;
+    let attempts = 0;
+    // Avoid spawning on top of players
+    do {
+      x = (Math.random() - 0.5) * ARENA_SIZE * 1.6;
+      z = (Math.random() - 0.5) * ARENA_SIZE * 1.6;
+      attempts++;
+    } while (attempts < 10 && this.isNearPlayer(x, z));
+
     const sizeRoll = Math.random();
     let radius: number, points: number;
     if (sizeRoll < 0.2) {
-      radius = 0.5; points = 5; // small = high value
+      radius = 0.5; points = 5;
     } else if (sizeRoll < 0.6) {
-      radius = 1; points = 3; // medium
+      radius = 1; points = 3;
     } else {
-      radius = 1.8; points = 1; // large = low value
+      radius = 1.8; points = 1;
     }
     this.targets.push({ id, x, z, radius, points, active: true, respawnTimer: 0 });
+  }
+
+  private isNearPlayer(x: number, z: number): boolean {
+    for (const p of this.bPlayers.values()) {
+      const dx = p.x - x;
+      const dz = p.z - z;
+      if (dx * dx + dz * dz < MIN_TARGET_SPAWN_DIST * MIN_TARGET_SPAWN_DIST) return true;
+    }
+    return false;
   }
 
   handleInput(playerId: string, data: Record<string, unknown>): void {
@@ -77,36 +111,43 @@ export class BullseyeBonanza extends BaseGame {
 
     const joy = data.joystick as { x: number; y: number } | undefined;
     if (joy) {
-      p.vx = joy.x * 5;
-      p.vz = joy.y * 5;
-      if (Math.abs(joy.x) > 0.1 || Math.abs(joy.y) > 0.1) {
+      p.vx += joy.x * MOVE_SPEED * 0.4;
+      p.vz += joy.y * MOVE_SPEED * 0.4;
+      // Update aim direction from movement
+      if (Math.abs(joy.x) > 0.15 || Math.abs(joy.y) > 0.15) {
         p.aimAngle = Math.atan2(joy.x, joy.y);
       }
     }
 
     const buttons = data.buttons as Record<string, boolean> | undefined;
     if (buttons?.throw && p.throwCooldown <= 0) {
-      p.throwCooldown = 0.6;
-      this.checkThrowHit(p);
+      p.throwCooldown = THROW_COOLDOWN;
+      this.fireProjectile(p);
     }
   }
 
-  private checkThrowHit(p: BullseyePlayer): void {
-    // Raycast in aim direction, check targets
+  private fireProjectile(p: BullseyePlayer): void {
     const dx = Math.sin(p.aimAngle);
     const dz = Math.cos(p.aimAngle);
-    const range = 20;
+    this.projectiles.push({
+      id: `proj_${this.nextProjectileId++}`,
+      x: p.x + dx * 0.8,
+      z: p.z + dz * 0.8,
+      dx, dz,
+      life: THROW_RANGE / THROW_SPEED,
+      playerId: p.id,
+    });
 
+    // Check hits along the ray
     let bestTarget: Target | null = null;
-    let bestDist = range;
+    let bestDist = THROW_RANGE;
 
     for (const target of this.targets) {
       if (!target.active) continue;
-      // Point-to-line distance
       const tx = target.x - p.x;
       const tz = target.z - p.z;
       const dot = tx * dx + tz * dz;
-      if (dot < 0 || dot > range) continue;
+      if (dot < 0 || dot > THROW_RANGE) continue;
       const projX = dx * dot;
       const projZ = dz * dot;
       const perpDist = Math.sqrt((tx - projX) ** 2 + (tz - projZ) ** 2);
@@ -131,13 +172,51 @@ export class BullseyeBonanza extends BaseGame {
   }
 
   update(dt: number): void {
+    // Player movement
     for (const p of this.bPlayers.values()) {
       p.x += p.vx * dt;
       p.z += p.vz * dt;
       p.x = Math.max(-ARENA_SIZE, Math.min(ARENA_SIZE, p.x));
       p.z = Math.max(-ARENA_SIZE, Math.min(ARENA_SIZE, p.z));
       if (p.throwCooldown > 0) p.throwCooldown -= dt;
+      // Friction
+      p.vx *= Math.pow(FRICTION, dt * 60);
+      p.vz *= Math.pow(FRICTION, dt * 60);
+      // Clamp speed
+      const spd = Math.sqrt(p.vx * p.vx + p.vz * p.vz);
+      if (spd > MOVE_SPEED) {
+        p.vx = (p.vx / spd) * MOVE_SPEED;
+        p.vz = (p.vz / spd) * MOVE_SPEED;
+      }
     }
+
+    // Player-player collisions
+    const players = [...this.bPlayers.values()];
+    for (let i = 0; i < players.length; i++) {
+      for (let j = i + 1; j < players.length; j++) {
+        const a = players[i], b = players[j];
+        const dx = b.x - a.x;
+        const dz = b.z - a.z;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist < PLAYER_RADIUS * 2 && dist > 0) {
+          const nx = dx / dist;
+          const nz = dz / dist;
+          const overlap = PLAYER_RADIUS * 2 - dist;
+          a.x -= nx * overlap * 0.5;
+          a.z -= nz * overlap * 0.5;
+          b.x += nx * overlap * 0.5;
+          b.z += nz * overlap * 0.5;
+        }
+      }
+    }
+
+    // Update projectiles
+    for (const proj of this.projectiles) {
+      proj.x += proj.dx * THROW_SPEED * dt;
+      proj.z += proj.dz * THROW_SPEED * dt;
+      proj.life -= dt;
+    }
+    this.projectiles = this.projectiles.filter(p => p.life > 0);
 
     // Respawn targets
     for (const target of this.targets) {
@@ -145,20 +224,20 @@ export class BullseyeBonanza extends BaseGame {
         target.respawnTimer -= dt;
         if (target.respawnTimer <= 0) {
           target.active = true;
-          target.x = (Math.random() - 0.5) * ARENA_SIZE * 1.5;
-          target.z = (Math.random() - 0.5) * ARENA_SIZE * 1.5;
+          target.x = (Math.random() - 0.5) * ARENA_SIZE * 1.6;
+          target.z = (Math.random() - 0.5) * ARENA_SIZE * 1.6;
         }
       }
     }
 
-    // Ensure minimum active targets - reuse inactive ones instead of growing array
+    // Ensure minimum active targets
     const activeCount = this.targets.filter(t => t.active).length;
-    if (activeCount < 4) {
+    if (activeCount < 5) {
       const inactive = this.targets.find(t => !t.active && t.respawnTimer <= 0);
       if (inactive) {
         inactive.active = true;
-        inactive.x = (Math.random() - 0.5) * ARENA_SIZE * 1.5;
-        inactive.z = (Math.random() - 0.5) * ARENA_SIZE * 1.5;
+        inactive.x = (Math.random() - 0.5) * ARENA_SIZE * 1.6;
+        inactive.z = (Math.random() - 0.5) * ARENA_SIZE * 1.6;
       } else {
         this.spawnTarget();
       }
@@ -166,14 +245,30 @@ export class BullseyeBonanza extends BaseGame {
   }
 
   getEntities(): EntityState[] {
-    return this.targets
-      .filter(t => t.active)
-      .map(t => ({
+    const entities: EntityState[] = [];
+
+    // Active targets
+    for (const t of this.targets) {
+      if (!t.active) continue;
+      entities.push({
         id: t.id,
         type: 'target',
         position: { x: t.x, y: 0.5, z: t.z },
         data: { radius: t.radius, points: t.points },
-      }));
+      });
+    }
+
+    // Projectiles (for TV visualization)
+    for (const proj of this.projectiles) {
+      entities.push({
+        id: proj.id,
+        type: 'projectile',
+        position: { x: proj.x, y: 0.5, z: proj.z },
+        data: { playerId: proj.playerId },
+      });
+    }
+
+    return entities;
   }
 
   getPlayerStates(): PlayerState[] {
@@ -190,6 +285,7 @@ export class BullseyeBonanza extends BaseGame {
         data: {
           points: bp?.points ?? 0,
           aimAngle: bp?.aimAngle ?? 0,
+          throwCooldown: Math.max(0, bp?.throwCooldown ?? 0),
         },
       };
     });

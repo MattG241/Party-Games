@@ -240,12 +240,28 @@ function renderButtons(
       );
     }
 
-    case 'bullseye-bonanza':
+    case 'bullseye-bonanza': {
+      const throwCd = (myPlayer?.data?.throwCooldown as number) ?? 0;
+      const canThrow = throwCd <= 0;
+      const pts = (myPlayer?.data?.points as number) ?? 0;
       return (
-        <div style={btnStyles.grid1}>
-          <ActionButton label="THROW" color={hex} size="large" onPress={() => pressButton('throw')} emoji="🎯" />
+        <div style={{ ...btnStyles.grid1, flexDirection: 'column', gap: '12px' }}>
+          <div style={{ fontSize: 24, fontWeight: 900, textAlign: 'center' }}>
+            🎯 {pts} pts
+          </div>
+          <ActionButton
+            label={canThrow ? 'THROW' : '...'}
+            color={canThrow ? hex : '#555555'}
+            size="large"
+            onPress={() => pressButton('throw')}
+            emoji={canThrow ? '🎯' : '⏳'}
+          />
+          <div style={{ fontSize: 11, opacity: 0.4, textAlign: 'center' }}>
+            Aim with joystick, tap to throw
+          </div>
         </div>
       );
+    }
 
     case 'kart-blitz': {
       const boostCooldown = (myPlayer?.data?.boostCooldown as number) ?? 0;
