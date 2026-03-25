@@ -660,22 +660,29 @@ function buildRhythmRiotScene() {
   gridLines.position.y = 0.01;
   scene.add(gridLines);
 
-  // Note lane markers (A B X Y)
+  // Note lane markers (A B X Y) — hit zone at z=0
   const laneColors = [0x3BFF6A, 0xFF3B3B, 0x3B8BFF, 0xFFE03B];
   laneColors.forEach((c, i) => {
     const pl = new THREE.PointLight(c, 4, 15);
-    pl.position.set(i * 2 - 3, 1, 12);
+    pl.position.set(i * 2 - 3, 1, 0);
     scene.add(pl);
 
-    // Hit zone markers
+    // Hit zone markers at z=0
     const marker = new THREE.Mesh(
-      new THREE.RingGeometry(0.3, 0.5, 16),
-      new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.6 })
+      new THREE.RingGeometry(0.4, 0.6, 16),
+      new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.7 })
     );
     marker.rotation.x = -Math.PI / 2;
-    marker.position.set(i * 2 - 3, 0.02, 12);
+    marker.position.set(i * 2 - 3, 0.02, 0);
     scene.add(marker);
   });
+
+  // Hit line across all lanes
+  const hitLinePts = [new THREE.Vector3(-5, 0.03, 0), new THREE.Vector3(5, 0.03, 0)];
+  scene.add(new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(hitLinePts),
+    new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 })
+  ));
 
   // Disco lights
   for (let i = 0; i < 8; i++) {

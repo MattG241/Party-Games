@@ -481,15 +481,69 @@ function renderButtons(
       );
     }
 
-    case 'rhythm-riot':
+    case 'rhythm-riot': {
+      const combo = (myPlayer?.data?.combo as number) ?? 0;
+      const pts = (myPlayer?.data?.points as number) ?? 0;
+      const lastHit = (myPlayer?.data?.lastHitQuality as string) ?? '';
+      const songProgress = (myPlayer?.data?.songProgress as number) ?? 0;
+      const nextBtn = (myPlayer?.data?.nextButton as string) ?? '';
+      const hitColor = lastHit === 'perfect' ? '#3BFF6A' : lastHit === 'good' ? '#FFE03B' : lastHit === 'ok' ? '#FF8C3B' : lastHit === 'miss' ? '#FF3B3B' : '#ffffff';
+      const rColors: Record<string, string> = { a: '#3BFF6A', b: '#FF3B3B', x: '#3B8BFF', y: '#FFE03B' };
+      const rButtons = ['a', 'b', 'x', 'y'];
+      const rLabels = ['A', 'B', 'X', 'Y'];
       return (
-        <div style={btnStyles.grid2}>
-          <ActionButton label="A" color="#3BFF6A" size="medium" onPress={() => pressButton('a')} />
-          <ActionButton label="B" color="#FF3B3B" size="medium" onPress={() => pressButton('b')} />
-          <ActionButton label="X" color="#3B8BFF" size="medium" onPress={() => pressButton('x')} />
-          <ActionButton label="Y" color="#FFE03B" size="medium" onPress={() => pressButton('y')} />
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '8px' }}>
+          {/* Stats bar */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px' }}>
+            <div style={{ fontSize: 18, fontWeight: 900 }}>{pts}</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: hitColor, transition: 'color 0.1s' }}>
+              {lastHit ? lastHit.toUpperCase() : ''}
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>
+              {combo > 1 && `🔥 ${combo}x`}
+            </div>
+          </div>
+          {/* Song progress */}
+          <div style={{ height: 4, background: 'rgba(255,255,255,0.1)', borderRadius: 2, margin: '4px 8px', overflow: 'hidden' }}>
+            <div style={{ width: `${songProgress * 100}%`, height: '100%', background: '#C03BFF', borderRadius: 2 }} />
+          </div>
+          {/* 4 rhythm buttons */}
+          <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, padding: 8, alignContent: 'center' }}>
+            {rButtons.map((btn, i) => {
+              const isNext = nextBtn === btn;
+              return (
+                <button
+                  key={btn}
+                  onTouchStart={(e) => { e.preventDefault(); pressButton(btn); if ('vibrate' in navigator) navigator.vibrate(20); }}
+                  onClick={() => pressButton(btn)}
+                  style={{
+                    width: '100%',
+                    aspectRatio: '1',
+                    borderRadius: '50%',
+                    background: `radial-gradient(circle at 35% 35%, ${rColors[btn]}dd, ${rColors[btn]}66)`,
+                    border: `3px solid ${rColors[btn]}`,
+                    boxShadow: isNext ? `0 0 25px ${rColors[btn]}88` : `0 0 10px ${rColors[btn]}33`,
+                    color: 'white',
+                    fontSize: 22,
+                    fontWeight: 900,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    touchAction: 'none',
+                    userSelect: 'none',
+                    transform: isNext ? 'scale(1.08)' : 'scale(1)',
+                    transition: 'transform 0.1s, box-shadow 0.1s',
+                  }}
+                >
+                  {rLabels[i]}
+                </button>
+              );
+            })}
+          </div>
         </div>
       );
+    }
 
     default:
       return (
